@@ -1,0 +1,81 @@
+{
+  "hero": {
+    "tagline": "SMARTER ENERGY. BRIGHTER TOMORROW.",
+    "titleLine1": "持続可能な未来を、",
+    "titleLine2": "太陽光と系統用蓄電池の",
+    "titleLine3": "最先端技術で創る。",
+    "jpSubtitle": "エネルギーの未来を、設計する。",
+    "description": "株式会社ソルネクサ（SOLNEXA）は、特別高圧メガソーラー開発、系統用大型蓄電システム（BESS）の設計・機器供給、FIP市場運用最適化、そしてJIS規格・消防法に準拠した統合クラウド設計ツールを提供する総合エンジニアリング企業です。",
+    "bgImage": "/src/assets/images/clean_white_substation_1790637586669.jpg",
+    "bgBrightness": 1.05,
+    "overlayType": "light-clean",
+    "overlayOpacity": 0.12,
+    "accentBadge": "SOL (太陽) + NEXT (未来) + A (創生) ｜ JIS & 消防法告示第2号完全準拠",
+    "showSlogan": true,
+    "textColor": "dark",
+    "buttons": [
+      {
+        "id": "btn-solutions",
+        "label": "法人のお客様へ（ソリューション）",
+        "target": "solutions",
+        "style": "primary-red",
+        "icon": "arrow",
+        "visible": true
+      },
+      {
+        "id": "btn-tools",
+        "label": "エンジニアリング設計ツール (PRO)",
+        "target": "tools",
+        "style": "deep-navy",
+        "icon": "cpu",
+        "visible": true
+      },
+      {
+        "id": "btn-ai",
+        "label": "AI技術相談室",
+        "target": "ai-advisor",
+        "style": "outline",
+        "icon": "sparkles",
+        "visible": true
+      }
+    ],
+    "metrics": [
+      {
+        "id": "m-1",
+        "label": "国内累計設計・調達実績",
+        "value": "1.4",
+        "unit": "GW+",
+        "sub": "メガソーラー・系統用蓄電池"
+      },
+      {
+        "id": "m-2",
+        "label": "系統連系協議採択率",
+        "value": "98.4",
+        "unit": "%",
+        "sub": "特高66kV/高圧22kV連系"
+      },
+      {
+        "id": "m-3",
+        "label": "消防法・電気事業法適合",
+        "value": "100",
+        "unit": "%",
+        "sub": "保有空地3m・第48条完全適合"
+      },
+      {
+        "id": "m-4",
+        "label": "ライフサイクル運用年数",
+        "value": "20",
+        "unit": "年",
+        "sub": "FIP・JEPX・容量市場最適化"
+      }
+    ]
+  },
+  "theme": {
+    "primaryAccent": "#d81a28",
+    "fontFamily": "noto",
+    "fontSizeScale": "normal",
+    "heroTheme": "solar-frontier-light"
+  },
+  "lastUpdated": "2026-09-30T22:31:35.742Z",
+  "updatedBy": "Hoàng Anh Tuấn (管理者・CTO)"
+}

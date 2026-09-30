@@ -1,0 +1,6 @@
+{
+  "name": "SOLNEXA Web",
+  "description": "株式会社ソルネクサ（SOLNEXA Japan）- 太陽光発電・系統用蓄電池（BESS）の最新技術ナレッジ、市場動向、製品カタログ、AI相談室および統合エンジニアリング設計プラットフォーム。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
