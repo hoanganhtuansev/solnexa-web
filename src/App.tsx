@@ -54,10 +54,15 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Clear any stale cached admin logins to ensure clean unauthenticated guest view on reload
-    try {
-      localStorage.removeItem('solnexa_user');
-    } catch {}
+    fetch('/api/auth/me', { credentials: 'same-origin' })
+      .then(res => res.json())
+      .then(data => {
+        if (data?.user) {
+          setCurrentUser(data.user);
+          setIsLoggedIn(true);
+        }
+      })
+      .catch(() => {});
   }, []);
 
   const handleLoginSuccess = (user: any) => {
@@ -65,12 +70,15 @@ export default function App() {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'same-origin'
+      });
+    } catch {}
     setIsLoggedIn(false);
     setCurrentUser(null);
-    try {
-      localStorage.removeItem('solnexa_user');
-    } catch {}
   };
 
   const handleNavigateCorporate = (tab: CorporateTab, subTab?: string) => {
