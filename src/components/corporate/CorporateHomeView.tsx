@@ -86,7 +86,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
 }) => {
   return (
     <div className="bg-white text-slate-900">
-      <section className="relative -mx-4 -mt-8 min-h-[78vh] overflow-hidden sm:-mx-6 lg:-mx-8">
+      <section className="relative min-h-[78vh] overflow-hidden">
         <img
           src={APP_IMAGES.cleanWhiteSubstation}
           alt="太陽光発電・BESSエンジニアリング"
@@ -136,7 +136,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1440px] px-1 py-24 sm:py-32 lg:py-36">
+      <section className="mx-auto max-w-[1440px] px-5 py-24 sm:px-8 sm:py-32 lg:px-12 lg:py-36">
         <div className="mb-16 grid gap-6 lg:grid-cols-[0.7fr_1.3fr] lg:items-end">
           <div>
             <p className="text-xs font-semibold tracking-[0.22em] text-[#d81a28]">BUSINESS</p>
@@ -197,8 +197,8 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="-mx-4 bg-[#f4f7f9] px-4 py-24 sm:-mx-6 sm:px-6 sm:py-32 lg:-mx-8 lg:px-8 lg:py-36">
-        <div className="mx-auto max-w-[1440px]">
+      <section className="bg-[#f4f7f9] py-24 sm:py-32 lg:py-36">
+        <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12">
           <div className="grid gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:items-end">
             <div>
               <p className="text-xs font-semibold tracking-[0.22em] text-[#d81a28]">SOLNEXA TOOLS</p>
@@ -253,7 +253,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="mx-auto grid max-w-[1440px] gap-10 py-24 sm:py-32 lg:grid-cols-2 lg:items-center lg:gap-20 lg:py-36">
+      <section className="mx-auto grid max-w-[1440px] gap-10 px-5 py-24 sm:px-8 sm:py-32 lg:grid-cols-2 lg:items-center lg:gap-20 lg:px-12 lg:py-36">
         <div className="overflow-hidden bg-slate-100">
           <img
             src={APP_IMAGES.smartEmsDaylight}
@@ -283,7 +283,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="-mx-4 bg-[#002b49] px-4 py-24 text-white sm:-mx-6 sm:px-6 sm:py-32 lg:-mx-8 lg:px-8">
+      <section className="bg-[#002b49] py-24 text-white sm:py-32">
         <div className="mx-auto max-w-[1440px]">
           <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
             <div>
@@ -316,7 +316,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="mx-auto max-w-[1440px] py-24 sm:py-32">
+      <section className="mx-auto max-w-[1440px] px-5 py-24 sm:px-8 sm:py-32 lg:px-12">
         <div className="grid gap-16 lg:grid-cols-2">
           <div>
             <p className="text-xs font-semibold tracking-[0.22em] text-[#d81a28]">NEWS</p>
@@ -356,7 +356,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
         </div>
       </section>
 
-      <section className="-mx-4 border-t border-slate-200 bg-[#f8fafc] px-4 py-24 sm:-mx-6 sm:px-6 sm:py-28 lg:-mx-8 lg:px-8">
+      <section className="border-t border-slate-200 bg-[#f8fafc] py-24 sm:py-28">
         <div className="mx-auto flex max-w-[1440px] flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold tracking-[0.22em] text-[#d81a28]">CONTACT</p>
