@@ -6,3 +6,7 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Runtime uploads must live in durable object storage in production.
+data/uploads/*
+!data/uploads/.gitkeep
