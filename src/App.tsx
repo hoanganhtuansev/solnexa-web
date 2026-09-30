@@ -245,7 +245,10 @@ export default function App() {
         />
 
         {/* Corporate Main Content */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className={corporateTab === 'home'
+          ? 'flex-1 w-full'
+          : 'flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8'
+        }>
           <AnimatePresence mode="wait">
             <motion.div
               key={corporateTab}
