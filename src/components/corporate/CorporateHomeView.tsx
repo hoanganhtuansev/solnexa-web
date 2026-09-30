@@ -284,7 +284,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
       </section>
 
       <section className="bg-[#002b49] py-24 text-white sm:py-32">
-        <div className="mx-auto max-w-[1440px]">
+        <div className="mx-auto max-w-[1440px] px-5 sm:px-8 lg:px-12">
           <div className="grid gap-10 lg:grid-cols-2 lg:items-end">
             <div>
               <p className="text-xs font-semibold tracking-[0.22em] text-sky-200">WORKS</p>
@@ -357,7 +357,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
       </section>
 
       <section className="border-t border-slate-200 bg-[#f8fafc] py-24 sm:py-28">
-        <div className="mx-auto flex max-w-[1440px] flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+        <div className="mx-auto flex max-w-[1440px] flex-col gap-8 px-5 sm:px-8 lg:flex-row lg:items-end lg:justify-between lg:px-12">
           <div>
             <p className="text-xs font-semibold tracking-[0.22em] text-[#d81a28]">CONTACT</p>
             <h2 className="mt-4 text-4xl font-semibold tracking-[-0.035em] text-[#002b49] sm:text-5xl">
