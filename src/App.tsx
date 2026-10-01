@@ -245,7 +245,7 @@ export default function App() {
         />
 
         {/* Corporate Main Content */}
-        <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="flex-1 w-full">
           <AnimatePresence mode="wait">
             <motion.div
               key={corporateTab}
@@ -263,6 +263,7 @@ export default function App() {
                     setActiveTab('dashboard');
                     window.scrollTo({ top: 0, behavior: 'smooth' });
                   }}
+                  onOpenEngineeringTool={handleOpenEngineeringTool}
                   onOpenContact={() => {
                     setContactDefaultType('technical_consulting');
                     setIsContactModalOpen(true);
@@ -280,88 +281,92 @@ export default function App() {
                 />
               )}
 
-              {corporateTab === 'solutions' && (
-                <SolutionsView
-                  initialTab={solutionSubTab}
-                  onOpenContact={handleOpenDesignQuotation}
-                  onOpenEngineeringTools={() => {
-                    setPortalMode('engineering');
-                    setActiveTab('workspace');
-                    setProjectSubView('overview');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-              )}
+              {corporateTab !== 'home' && (
+                <div className="max-w-7xl mx-auto px-6 lg:px-12 py-10">
+                  {corporateTab === 'solutions' && (
+                    <SolutionsView
+                      initialTab={solutionSubTab}
+                      onOpenContact={handleOpenDesignQuotation}
+                      onOpenEngineeringTools={() => {
+                        setPortalMode('engineering');
+                        setActiveTab('workspace');
+                        setProjectSubView('overview');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  )}
 
-              {corporateTab === 'knowledge' && (
-                <KnowledgeView
-                  onOpenEngineeringTools={() => {
-                    setPortalMode('engineering');
-                    setActiveTab('quick-engineering');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                  onOpenContact={() => {
-                    setContactDefaultType('technical_consulting');
-                    setIsContactModalOpen(true);
-                  }}
-                  currentUser={currentUser}
-                  isLoggedIn={isLoggedIn}
-                  onOpenLogin={() => setIsLoginModalOpen(true)}
-                />
-              )}
+                  {corporateTab === 'knowledge' && (
+                    <KnowledgeView
+                      onOpenEngineeringTools={() => {
+                        setPortalMode('engineering');
+                        setActiveTab('quick-engineering');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      onOpenContact={() => {
+                        setContactDefaultType('technical_consulting');
+                        setIsContactModalOpen(true);
+                      }}
+                      currentUser={currentUser}
+                      isLoggedIn={isLoggedIn}
+                      onOpenLogin={() => setIsLoginModalOpen(true)}
+                    />
+                  )}
 
-              {corporateTab === 'products' && (
-                <ProductsView
-                  onOpenContact={() => {
-                    setContactDefaultType('equipment_quotation');
-                    setIsContactModalOpen(true);
-                  }}
-                  onOpenEngineeringTools={() => {
-                    setPortalMode('engineering');
-                    setActiveTab('library');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-              )}
+                  {corporateTab === 'products' && (
+                    <ProductsView
+                      onOpenContact={() => {
+                        setContactDefaultType('equipment_quotation');
+                        setIsContactModalOpen(true);
+                      }}
+                      onOpenEngineeringTools={() => {
+                        setPortalMode('engineering');
+                        setActiveTab('library');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  )}
 
-              {corporateTab === 'projects' && (
-                <ProjectsView
-                  onOpenContact={() => {
-                    setContactDefaultType('bess_project');
-                    setIsContactModalOpen(true);
-                  }}
-                  onOpenEngineeringTools={() => {
-                    setPortalMode('engineering');
-                    setActiveTab('projects');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
-              )}
+                  {corporateTab === 'projects' && (
+                    <ProjectsView
+                      onOpenContact={() => {
+                        setContactDefaultType('bess_project');
+                        setIsContactModalOpen(true);
+                      }}
+                      onOpenEngineeringTools={() => {
+                        setPortalMode('engineering');
+                        setActiveTab('projects');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  )}
 
-              {corporateTab === 'news' && (
-                <NewsView
-                  onOpenContact={() => {
-                    setContactDefaultType('catalog_request');
-                    setIsContactModalOpen(true);
-                  }}
-                  isAdmin={Boolean(currentUser?.isAdmin)}
-                  currentUser={currentUser}
-                />
-              )}
+                  {corporateTab === 'news' && (
+                    <NewsView
+                      onOpenContact={() => {
+                        setContactDefaultType('catalog_request');
+                        setIsContactModalOpen(true);
+                      }}
+                      isAdmin={Boolean(currentUser?.isAdmin)}
+                      currentUser={currentUser}
+                    />
+                  )}
 
-              {corporateTab === 'ai-advisor' && (
-                <AiConsultantView
-                  initialPrompt={activeAiPrompt}
-                  onOpenContact={() => {
-                    setContactDefaultType('technical_consulting');
-                    setIsContactModalOpen(true);
-                  }}
-                  onOpenEngineeringTools={() => {
-                    setPortalMode('engineering');
-                    setActiveTab('dashboard');
-                    window.scrollTo({ top: 0, behavior: 'smooth' });
-                  }}
-                />
+                  {corporateTab === 'ai-advisor' && (
+                    <AiConsultantView
+                      initialPrompt={activeAiPrompt}
+                      onOpenContact={() => {
+                        setContactDefaultType('technical_consulting');
+                        setIsContactModalOpen(true);
+                      }}
+                      onOpenEngineeringTools={() => {
+                        setPortalMode('engineering');
+                        setActiveTab('dashboard');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                    />
+                  )}
+                </div>
               )}
             </motion.div>
           </AnimatePresence>
