@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { db } from '../db/database';
 import { pdfIngestionPipeline } from '../services/pdfIngestionPipeline';
 import { reviewService } from '../services/reviewService';
@@ -19,8 +20,38 @@ export const apiRouter = Router();
 
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 30 * 1024 * 1024 } // 30MB limit
+  limits: { fileSize: 30 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const looksLikePdf = file.mimetype === 'application/pdf' && /\.pdf$/i.test(file.originalname);
+    if (!looksLikePdf) {
+      return cb(new Error('PDFファイルのみアップロードできます。'));
+    }
+    cb(null, true);
+  }
 });
+
+const createRateLimiter = (maxRequests: number, windowMs: number) => {
+  const buckets = new Map<string, { count: number; resetAt: number }>();
+  return (req: Request, res: Response, next: NextFunction) => {
+    const now = Date.now();
+    const key = req.ip || req.socket.remoteAddress || 'unknown';
+    const current = buckets.get(key);
+    if (!current || current.resetAt <= now) {
+      buckets.set(key, { count: 1, resetAt: now + windowMs });
+      return next();
+    }
+    if (current.count >= maxRequests) {
+      res.setHeader('Retry-After', Math.max(1, Math.ceil((current.resetAt - now) / 1000)));
+      return res.status(429).json({ error: 'リクエストが多すぎます。しばらくしてから再度お試しください。' });
+    }
+    current.count += 1;
+    next();
+  };
+};
+
+const authRateLimit = createRateLimiter(12, 10 * 60 * 1000);
+const aiRateLimit = createRateLimiter(30, 60 * 60 * 1000);
+const uploadRateLimit = createRateLimiter(10, 60 * 60 * 1000);
 
 // Middleware wrapper for multer to catch and format any upload errors as JSON
 const handleUpload = (req: Request, res: Response, next: NextFunction) => {
@@ -77,7 +108,7 @@ apiRouter.get('/projects/:id', (req: Request, res: Response) => {
   res.json(project);
 });
 
-apiRouter.post('/projects', (req: Request, res: Response) => {
+apiRouter.post('/projects', requireAdmin, (req: Request, res: Response) => {
   try {
     const saved = db.upsertProject(req.body);
     res.json(saved);
@@ -86,7 +117,7 @@ apiRouter.post('/projects', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/projects/:id', (req: Request, res: Response) => {
+apiRouter.delete('/projects/:id', requireAdmin, (req: Request, res: Response) => {
   const ok = db.deleteProject(req.params.id);
   res.json({ success: ok });
 });
@@ -110,7 +141,7 @@ apiRouter.get('/categories', (req: Request, res: Response) => {
 });
 
 // --- Datasheet PDF Upload & Ingestion ---
-apiRouter.post(['/datasheets/upload', '/datasheets/upload/'], handleUpload, async (req: Request, res: Response) => {
+apiRouter.post(['/datasheets/upload', '/datasheets/upload/'], uploadRateLimit, handleUpload, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -278,7 +309,7 @@ apiRouter.get('/review/:modelId', (req: Request, res: Response) => {
   res.json(details);
 });
 
-apiRouter.put('/specifications/:id', (req: Request, res: Response) => {
+apiRouter.put('/specifications/:id', requireAdmin, (req: Request, res: Response) => {
   const updated = reviewService.updateSpecification(req.params.id, req.body);
   if (!updated) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -286,7 +317,7 @@ apiRouter.put('/specifications/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-apiRouter.post('/specifications/:id/approve', (req: Request, res: Response) => {
+apiRouter.post('/specifications/:id/approve', requireAdmin, (req: Request, res: Response) => {
   const approved = reviewService.approveSpecification(req.params.id);
   if (!approved) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -294,7 +325,7 @@ apiRouter.post('/specifications/:id/approve', (req: Request, res: Response) => {
   res.json(approved);
 });
 
-apiRouter.post('/specifications/:id/reject', (req: Request, res: Response) => {
+apiRouter.post('/specifications/:id/reject', requireAdmin, (req: Request, res: Response) => {
   const rejected = reviewService.rejectSpecification(req.params.id);
   if (!rejected) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -302,7 +333,7 @@ apiRouter.post('/specifications/:id/reject', (req: Request, res: Response) => {
   res.json(rejected);
 });
 
-apiRouter.post('/models/:modelId/specifications', (req: Request, res: Response) => {
+apiRouter.post('/models/:modelId/specifications', requireAdmin, (req: Request, res: Response) => {
   try {
     const spec = reviewService.addMissingSpecification(req.params.modelId, req.body);
     res.json(spec);
@@ -311,7 +342,7 @@ apiRouter.post('/models/:modelId/specifications', (req: Request, res: Response) 
   }
 });
 
-apiRouter.post('/models/:modelId/commit', (req: Request, res: Response) => {
+apiRouter.post('/models/:modelId/commit', requireAdmin, (req: Request, res: Response) => {
   try {
     const committed = reviewService.approveAllAndCommit(req.params.modelId, req.body);
     res.json(committed);
@@ -349,14 +380,14 @@ apiRouter.post('/calculations/pv-string-design', (req: Request, res: Response) =
 });
 
 // --- Extraction Diagnostics ---
-apiRouter.get('/diagnostics/runs', (req: Request, res: Response) => {
+apiRouter.get('/diagnostics/runs', requireAdmin, (req: Request, res: Response) => {
   const { datasheetId } = req.query;
   const runs = db.getExtractionRuns(datasheetId ? String(datasheetId) : undefined);
   res.json(runs);
 });
 
 // --- Settings & AI Provider Config ---
-apiRouter.get('/settings', (req: Request, res: Response) => {
+apiRouter.get('/settings', requireAdmin, (req: Request, res: Response) => {
   res.json({
     settings: aiProviderManager.getSettings(),
     activeProviderName: aiProviderManager.getActiveProviderName(),
@@ -364,7 +395,7 @@ apiRouter.get('/settings', (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/settings', (req: Request, res: Response) => {
+apiRouter.post('/settings', requireAdmin, (req: Request, res: Response) => {
   try {
     const updated = aiProviderManager.updateSettings(req.body);
     res.json({
@@ -377,9 +408,22 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/settings/test-local', async (req: Request, res: Response) => {
+apiRouter.post('/settings/test-local', requireAdmin, async (req: Request, res: Response) => {
   try {
-    const { endpoint } = req.body;
+    const endpoint = String(req.body?.endpoint || 'http://127.0.0.1:11434');
+    let parsed: URL;
+    try {
+      parsed = new URL(endpoint);
+    } catch {
+      return res.status(400).json({ success: false, message: '無効なローカルAIエンドポイントです。' });
+    }
+    const allowedHosts = new Set(['localhost', '127.0.0.1', '::1']);
+    if (parsed.protocol !== 'http:' || !allowedHosts.has(parsed.hostname)) {
+      return res.status(400).json({
+        success: false,
+        message: 'セキュリティ上、ローカルAI接続テストはloopbackアドレスのみ許可されています。'
+      });
+    }
     const result = await aiProviderManager.testLocalConnection(endpoint);
     res.json(result);
   } catch (err: any) {
@@ -391,7 +435,7 @@ apiRouter.post('/settings/test-local', async (req: Request, res: Response) => {
 });
 
 // Backward-compatible endpoints
-apiRouter.get('/settings/providers', (req: Request, res: Response) => {
+apiRouter.get('/settings/providers', requireAdmin, (req: Request, res: Response) => {
   res.json({
     active: aiProviderManager.getActiveProviderId(),
     activeName: aiProviderManager.getActiveProviderName(),
@@ -399,7 +443,7 @@ apiRouter.get('/settings/providers', (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/settings/provider', (req: Request, res: Response) => {
+apiRouter.post('/settings/provider', requireAdmin, (req: Request, res: Response) => {
   const { provider } = req.body;
   const updated = aiProviderManager.updateSettings({ activeProvider: provider });
   res.json({ success: true, active: updated.activeProvider });
@@ -490,7 +534,7 @@ apiRouter.post('/inquiries', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.get('/inquiries', (req: Request, res: Response) => {
+apiRouter.get('/inquiries', requireAdmin, (req: Request, res: Response) => {
   res.json(corporateInquiries);
 });
 
@@ -505,6 +549,7 @@ interface PortalUser {
   isAdmin: boolean;
   avatar?: string;
   createdAt?: string;
+  passwordHash?: string;
 }
 
 const usersDatabase: PortalUser[] = [
@@ -540,7 +585,111 @@ const usersDatabase: PortalUser[] = [
   }
 ];
 
-let currentUser: PortalUser | null = usersDatabase[0]; // default logged in as Hoàng Anh Tuấn (Admin)
+const SESSION_COOKIE = 'solnexa_session';
+
+const publicUser = (user: PortalUser) => {
+  const { passwordHash: _passwordHash, ...safe } = user;
+  return safe;
+};
+
+const safeEqualText = (a: string, b: string) => {
+  const left = Buffer.from(a);
+  const right = Buffer.from(b);
+  return left.length === right.length && crypto.timingSafeEqual(left, right);
+};
+
+const hashPassword = (password: string) => {
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.scryptSync(password, salt, 64).toString('hex');
+  return `${salt}:${hash}`;
+};
+
+const verifyPasswordHash = (password: string, stored?: string) => {
+  if (!stored) return false;
+  const [salt, expected] = stored.split(':');
+  if (!salt || !expected) return false;
+  const actual = crypto.scryptSync(password, salt, 64).toString('hex');
+  return safeEqualText(actual, expected);
+};
+
+const getSessionSecret = () => {
+  const configured = process.env.SESSION_SECRET?.trim();
+  if (configured) return configured;
+  if (process.env.NODE_ENV !== 'production') return 'solnexa-development-session-secret';
+  return null;
+};
+
+const parseCookies = (req: Request) => {
+  const header = req.headers.cookie || '';
+  return Object.fromEntries(
+    header
+      .split(';')
+      .map(v => v.trim())
+      .filter(Boolean)
+      .map(v => {
+        const idx = v.indexOf('=');
+        return idx >= 0 ? [decodeURIComponent(v.slice(0, idx)), decodeURIComponent(v.slice(idx + 1))] : [v, ''];
+      })
+  );
+};
+
+const signSession = (userId: string) => {
+  const secret = getSessionSecret();
+  if (!secret) throw new Error('SESSION_SECRET is not configured');
+  const payload = Buffer.from(JSON.stringify({
+    uid: userId,
+    exp: Date.now() + 12 * 60 * 60 * 1000
+  })).toString('base64url');
+  const signature = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  return `${payload}.${signature}`;
+};
+
+const getSessionUser = (req: Request): PortalUser | null => {
+  const token = parseCookies(req)[SESSION_COOKIE];
+  const secret = getSessionSecret();
+  if (!token || !secret) return null;
+  const [payload, signature] = token.split('.');
+  if (!payload || !signature) return null;
+  const expected = crypto.createHmac('sha256', secret).update(payload).digest('base64url');
+  if (!safeEqualText(signature, expected)) return null;
+  try {
+    const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
+    if (!parsed?.uid || !parsed?.exp || parsed.exp < Date.now()) return null;
+    return usersDatabase.find(u => u.id === parsed.uid) || null;
+  } catch {
+    return null;
+  }
+};
+
+const setSessionCookie = (res: Response, userId: string) => {
+  const token = signSession(userId);
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=${encodeURIComponent(token)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=43200${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+  );
+};
+
+const clearSessionCookie = (res: Response) => {
+  res.setHeader(
+    'Set-Cookie',
+    `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0${process.env.NODE_ENV === 'production' ? '; Secure' : ''}`
+  );
+};
+
+function requireAuth(req: Request, res: Response, next: NextFunction) {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'ログインが必要です。' });
+  (req as any).portalUser = user;
+  next();
+}
+
+function requireAdmin(req: Request, res: Response, next: NextFunction) {
+  const user = getSessionUser(req);
+  if (!user) return res.status(401).json({ error: 'ログインが必要です。' });
+  if (!user.isAdmin) return res.status(403).json({ error: '管理者権限が必要です。' });
+  (req as any).portalUser = user;
+  next();
+}
 
 apiRouter.get('/company/info', (_req: Request, res: Response) => {
   res.json({
@@ -577,7 +726,7 @@ apiRouter.get('/site-config', (_req: Request, res: Response) => {
 });
 
 // Save persistent site visual configuration (Admin only)
-apiRouter.post('/site-config', (req: Request, res: Response) => {
+apiRouter.post('/site-config', requireAdmin, (req: Request, res: Response) => {
   try {
     const configData = req.body;
     if (!configData || !configData.hero) {
@@ -588,7 +737,8 @@ apiRouter.post('/site-config', (req: Request, res: Response) => {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     configData.lastUpdated = new Date().toISOString();
-    configData.updatedBy = currentUser ? currentUser.name : 'Hoàng Anh Tuấn (Admin)';
+    const actor = (req as any).portalUser as PortalUser;
+    configData.updatedBy = actor.name;
     fs.writeFileSync(SITE_CONFIG_FILE, JSON.stringify(configData, null, 2), 'utf-8');
     res.json({ success: true, message: 'サイト設定が正常に保存・更新されました。', config: configData });
   } catch (err: any) {
@@ -596,88 +746,91 @@ apiRouter.post('/site-config', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/auth/register', (req: Request, res: Response) => {
+apiRouter.post('/auth/register', authRateLimit, (req: Request, res: Response) => {
   try {
     const { name, email, company, role, password } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ error: 'お名前とメールアドレスは必須です。' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'お名前、メールアドレス、パスワードは必須です。' });
     }
-    const cleanEmail = email.toLowerCase().trim();
+    if (String(password).length < 10) {
+      return res.status(400).json({ error: 'パスワードは10文字以上で設定してください。' });
+    }
+    const cleanEmail = String(email).toLowerCase().trim();
     const existing = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
     if (existing) {
-      return res.status(400).json({ error: 'このメールアドレスは既に登録されています。ログインしてください。' });
+      return res.status(400).json({ error: 'このメールアドレスは既に登録されています。' });
     }
 
-    const isAdmin = cleanEmail === 'hoanganhtuan.solnexa@gmail.com' || cleanEmail.includes('admin') || cleanEmail === 'admin@solnexa.co.jp';
     const newUser: PortalUser = {
       id: `usr-${Date.now().toString(36)}`,
-      name,
+      name: String(name).trim(),
       email: cleanEmail,
-      company: company || '一般会員',
-      role: role || 'エンジニア',
-      tier: isAdmin ? 'Super Administrator' : 'Standard Member',
-      isAdmin,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      createdAt: new Date().toISOString()
+      company: String(company || '一般会員').trim(),
+      role: String(role || 'エンジニア').trim(),
+      tier: 'Standard Member',
+      isAdmin: false,
+      createdAt: new Date().toISOString(),
+      passwordHash: hashPassword(String(password))
     };
     usersDatabase.unshift(newUser);
-    currentUser = newUser;
+    setSessionCookie(res, newUser.id);
 
     res.json({
       success: true,
-      user: newUser,
-      message: 'アカウントが正常に登録されました。すべての専門機能をご利用いただけます。'
+      user: publicUser(newUser),
+      message: 'アカウントを登録しました。'
     });
   } catch (err: any) {
+    console.error('[Auth Register]', err);
     res.status(500).json({ error: '登録処理中にエラーが発生しました。' });
   }
 });
 
-apiRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { email, userId, password } = req.body;
-  if (userId) {
-    const found = usersDatabase.find(u => u.id === userId);
-    if (found) {
-      currentUser = found;
-      return res.json({ success: true, user: currentUser });
-    }
-  }
-
-  if (email) {
-    const cleanEmail = email.toLowerCase().trim();
-    // Special admin match for hoanganhtuan.solnexa@gmail.com
-    if (cleanEmail === 'hoanganhtuan.solnexa@gmail.com') {
-      currentUser = usersDatabase[0];
-      return res.json({ success: true, user: currentUser });
+apiRouter.post('/auth/login', authRateLimit, (req: Request, res: Response) => {
+  try {
+    const cleanEmail = String(req.body?.email || '').toLowerCase().trim();
+    const password = String(req.body?.password || '');
+    if (!cleanEmail || !password) {
+      return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください。' });
     }
 
     const found = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
-    if (found) {
-      currentUser = found;
-      return res.json({ success: true, user: currentUser });
+    if (!found) {
+      return res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません。' });
     }
 
-    if (cleanEmail.includes('admin') || cleanEmail === 'admin@solnexa.co.jp') {
-      currentUser = usersDatabase[0];
-      return res.json({ success: true, user: currentUser });
+    let valid = verifyPasswordHash(password, found.passwordHash);
+    if (found.isAdmin && process.env.ADMIN_PASSWORD) {
+      valid = safeEqualText(password, process.env.ADMIN_PASSWORD);
+    } else if (!found.passwordHash && process.env.PORTAL_DEMO_PASSWORD) {
+      valid = safeEqualText(password, process.env.PORTAL_DEMO_PASSWORD);
     }
+
+    if (!valid) {
+      return res.status(401).json({ error: 'メールアドレスまたはパスワードが正しくありません。' });
+    }
+
+    setSessionCookie(res, found.id);
+    res.json({ success: true, user: publicUser(found) });
+  } catch (err: any) {
+    console.error('[Auth Login]', err);
+    const isConfigError = String(err?.message || '').includes('SESSION_SECRET');
+    res.status(isConfigError ? 503 : 500).json({
+      error: isConfigError
+        ? 'サーバー認証設定が未完了です。管理者にお問い合わせください。'
+        : 'ログイン処理に失敗しました。'
+    });
   }
-
-  // fallback to first user (Admin)
-  currentUser = usersDatabase[0];
-  res.json({
-    success: true,
-    user: currentUser
-  });
 });
 
 apiRouter.post('/auth/logout', (_req: Request, res: Response) => {
-  currentUser = null;
+  clearSessionCookie(res);
   res.json({ success: true, message: 'ログアウトしました。' });
 });
 
 apiRouter.get('/auth/me', (req: Request, res: Response) => {
-  res.json({ user: currentUser });
+  const user = getSessionUser(req);
+  res.json({ user: user ? publicUser(user) : null });
 });
 
 // --- Dynamic CMS Data Store for Technical Knowledge & News ---
@@ -760,7 +913,7 @@ apiRouter.get('/articles', (_req: Request, res: Response) => {
   res.json(articlesStore);
 });
 
-apiRouter.post('/articles', (req: Request, res: Response) => {
+apiRouter.post('/articles', requireAdmin, (req: Request, res: Response) => {
   try {
     const { category, title, author, readTime, summary, content } = req.body;
     if (!title || !content) {
@@ -771,7 +924,7 @@ apiRouter.post('/articles', (req: Request, res: Response) => {
       category: category || '技術解説',
       title,
       date: new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }),
-      author: author || (currentUser ? currentUser.name : 'ソルネクサ 技術部'),
+      author: author || ((req as any).portalUser as PortalUser).name,
       readTime: readTime || '所要時間 約5分',
       summary: summary || content.slice(0, 100) + '...',
       content,
@@ -784,7 +937,7 @@ apiRouter.post('/articles', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/articles/:id', (req: Request, res: Response) => {
+apiRouter.put('/articles/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const { category, title, author, readTime, summary, content } = req.body;
   const idx = articlesStore.findIndex(a => a.id === id);
@@ -804,7 +957,7 @@ apiRouter.put('/articles/:id', (req: Request, res: Response) => {
   res.json({ success: true, article: articlesStore[idx], message: '記事を更新しました。' });
 });
 
-apiRouter.delete('/articles/:id', (req: Request, res: Response) => {
+apiRouter.delete('/articles/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const initialLength = articlesStore.length;
   articlesStore = articlesStore.filter(a => a.id !== id);
@@ -898,7 +1051,7 @@ apiRouter.get('/news', (_req: Request, res: Response) => {
   res.json(newsStore);
 });
 
-apiRouter.post('/news', (req: Request, res: Response) => {
+apiRouter.post('/news', requireAdmin, (req: Request, res: Response) => {
   try {
     const { category, title, summary, content, isHot } = req.body;
     if (!title || !content) {
@@ -909,7 +1062,7 @@ apiRouter.post('/news', (req: Request, res: Response) => {
       date: new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.'),
       category: category || 'お知らせ',
       title,
-      author: currentUser ? currentUser.name : '株式会社ソルネクサ 広報室',
+      author: ((req as any).portalUser as PortalUser).name,
       summary: summary || content.slice(0, 100) + '...',
       content,
       isHot: Boolean(isHot)
@@ -921,7 +1074,7 @@ apiRouter.post('/news', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/news/:id', (req: Request, res: Response) => {
+apiRouter.put('/news/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const { category, title, summary, content, isHot } = req.body;
   const idx = newsStore.findIndex(n => n.id === id);
@@ -939,7 +1092,7 @@ apiRouter.put('/news/:id', (req: Request, res: Response) => {
   res.json({ success: true, news: newsStore[idx], message: 'ニュース記事を更新しました。' });
 });
 
-apiRouter.delete('/news/:id', (req: Request, res: Response) => {
+apiRouter.delete('/news/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const initialLength = newsStore.length;
   newsStore = newsStore.filter(n => n.id !== id);
@@ -951,7 +1104,7 @@ apiRouter.delete('/news/:id', (req: Request, res: Response) => {
 
 
 // AI Solar & BESS Technical Advisor
-apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
+apiRouter.post('/ai/consultation', aiRateLimit, async (req: Request, res: Response) => {
   const { message, history } = req.body;
   if (!message || typeof message !== 'string') {
     return res.status(400).json({ error: '質問内容を入力してください。' });

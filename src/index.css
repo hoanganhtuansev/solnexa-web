@@ -8,12 +8,13 @@
   }
 
   body {
-    background-color: #f8fafc;
+    background-color: #ffffff;
     color: #0f172a;
     font-family: 'Noto Sans JP', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, 'Yu Gothic', sans-serif;
-    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
-    letter-spacing: -0.01em;
-    line-height: 1.6;
+    font-feature-settings: "palt", "kern";
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.8;
   }
 }
 
