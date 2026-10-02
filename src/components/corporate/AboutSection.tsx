@@ -93,9 +93,9 @@ export const AboutSection: React.FC<AboutSectionProps> = ({
             <button
               onClick={() => {
                 if (onOpenCompanyProfile) onOpenCompanyProfile();
-                else onOpenContact();
+                else onNavigateTab('company');
               }}
-              className="inline-flex items-center gap-2 px-5 py-3 bg-[#002b49] hover:bg-[#001d32] text-white text-xs font-bold rounded-lg shadow-xs hover:shadow-md transition-all cursor-pointer"
+              className="inline-flex items-center gap-2 px-5 py-3 bg-[#002b49] hover:bg-[#001d32] text-white text-xs font-bold rounded-lg shadow-xs hover:shadow-md transition-colors cursor-pointer"
             >
               <span>企業情報・会社概要を詳しく見る</span>
               <ArrowRight className="w-4 h-4 text-[#d81a28]" />

@@ -56,9 +56,10 @@ export const TechnologySection: React.FC<TechnologySectionProps> = ({
               </span>
             </div>
 
-            <h2 className="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight leading-tight">
-              設計実務をクラウドで自動化。<br />
-              <span className="text-[#002b49]">SOLNEXA 統合設計ワークスペース</span>
+            <h2 className="text-xl sm:text-3xl font-black text-slate-900 tracking-tight leading-snug jp-heading">
+              <span className="jp-chunk">設計実務をクラウドで自動化。</span>
+              <br className="hidden sm:inline" />
+              <span className="text-[#002b49] jp-chunk">SOLNEXA 統合設計ワークスペース</span>
             </h2>
           </div>
 

@@ -20,7 +20,10 @@ import {
   Bell,
   CheckCircle2,
   Download,
-  Lock
+  Lock,
+  LogIn,
+  MapPin,
+  ShieldCheck
 } from 'lucide-react';
 import { SolnexaLogo } from './SolnexaLogo';
 import { APP_IMAGES } from '../solarAssets';
@@ -32,7 +35,8 @@ export type CorporateTab =
   | 'products' 
   | 'projects' 
   | 'news' 
-  | 'ai-advisor';
+  | 'ai-advisor'
+  | 'company';
 
 interface CorporateHeaderProps {
   currentTab: CorporateTab | 'tools-workspace';
@@ -69,30 +73,78 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
   const [isPartnerModalOpen, setIsPartnerModalOpen] = useState(false);
   const [activeLang, setActiveLang] = useState<'JP' | 'EN'>('JP');
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
-  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  const openTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const closeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const isAdmin = Boolean(currentUser?.isAdmin);
 
+  // Track page scroll with requestAnimationFrame and hysteresis to prevent oscillation loops
+  useEffect(() => {
+    let ticking = false;
+    const handleScroll = () => {
+      if (!ticking) {
+        window.requestAnimationFrame(() => {
+          const currentY = window.scrollY;
+          setIsScrolled((prev) => {
+            // Stable hysteresis deadband:
+            // Scrolled when down past 50px
+            // Return to top when <= 15px
+            if (!prev && currentY > 50) return true;
+            if (prev && currentY <= 15) return false;
+            return prev;
+          });
+          ticking = false;
+        });
+        ticking = true;
+      }
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    handleScroll();
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // Smooth hover with 75ms open delay, 260ms close delay, and gentle switch buffer
   const handleMouseEnter = (itemId: string) => {
-    if (hoverTimeoutRef.current) {
-      clearTimeout(hoverTimeoutRef.current);
+    if (closeTimeoutRef.current) {
+      clearTimeout(closeTimeoutRef.current);
+      closeTimeoutRef.current = null;
     }
-    setActiveDropdown(itemId);
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
+    }
+    if (activeDropdown) {
+      // Gentle switch between open menus without harsh snapping
+      openTimeoutRef.current = setTimeout(() => {
+        setActiveDropdown(itemId);
+      }, 50);
+      return;
+    }
+    openTimeoutRef.current = setTimeout(() => {
+      setActiveDropdown(itemId);
+    }, 75);
   };
 
   const handleMouseLeave = () => {
-    hoverTimeoutRef.current = setTimeout(() => {
+    if (openTimeoutRef.current) {
+      clearTimeout(openTimeoutRef.current);
+      openTimeoutRef.current = null;
+    }
+    closeTimeoutRef.current = setTimeout(() => {
       setActiveDropdown(null);
-    }, 280);
+    }, 260);
   };
 
   useEffect(() => {
     return () => {
-      if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+      if (openTimeoutRef.current) clearTimeout(openTimeoutRef.current);
+      if (closeTimeoutRef.current) clearTimeout(closeTimeoutRef.current);
     };
   }, []);
 
-  const handleNavClick = (target: string) => {
+  const handleNavClick = (target: string, subTab?: string) => {
     setIsMobileMenuOpen(false);
     setActiveDropdown(null);
 
@@ -151,12 +203,8 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
     }
 
     if (target === 'company') {
-      if (onOpenCompanyProfile) {
-        onOpenCompanyProfile();
-      } else {
-        const el = document.getElementById('company');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      }
+      onNavigateTab('company', subTab);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
   };
@@ -170,43 +218,56 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
     }
   };
 
-  // Main Nav Items in Japanese (Bilingual stacked for authentic Japanese corporate look)
+  // Main Nav Items in Pure Japanese (Clean, airy, matching Solar Frontier)
   const navMenuItems = [
-    { id: 'business', label: '私たちについて', enLabel: 'ABOUT US', hasPopup: true },
-    { id: 'works', label: '実績紹介', enLabel: 'WORKS', hasPopup: true },
-    { id: 'tools', label: '設計ツール', enLabel: 'TOOLS', isTools: true, hasPopup: true },
-    { id: 'ai-consult', label: 'AI技術相談', enLabel: 'AI CONSULT', hasPopup: false },
-    { id: 'news', label: 'お知らせ', enLabel: 'NEWS', hasPopup: true },
-    { id: 'company', label: '企業情報', enLabel: 'COMPANY', hasPopup: true },
+    { id: 'business', label: '私たちについて', hasPopup: true },
+    { id: 'works', label: '実績紹介', hasPopup: true },
+    { id: 'tools', label: '設計ツール', isTools: true, hasPopup: true },
+    { id: 'ai-consult', label: 'AI技術相談', hasPopup: false },
+    { id: 'company', label: '企業情報', hasPopup: true },
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white border-b border-slate-200 transition-all font-sans shadow-xs">
+    <header className={`sticky top-0 z-50 transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] font-sans ${
+      isScrolled
+        ? 'bg-white/95 backdrop-blur-md border-b border-slate-200/90 shadow-xs'
+        : 'bg-white border-b border-slate-200/90 shadow-2xs'
+    }`}>
       
       {/* ========================================================================= */}
-      {/* 1. TOP UTILITY ROW (Chuẩn Solar Frontier: サポート お知らせ カタログ... )   */}
+      {/* SOLAR FRONTIER EXACT LAYOUT: Harmonious spacing, larger logo, nav right   */}
       {/* ========================================================================= */}
-      <div className="bg-[#f8fafc] border-b border-slate-200/90 hidden sm:block text-[11px] text-slate-600">
-        <div className="max-w-7xl mx-auto px-6 lg:px-12 h-8 flex items-center justify-between">
-          
-          {/* Left: Brand tag line */}
-          <div className="flex items-center gap-2 font-medium text-slate-500">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#002B49]" />
-            <span className="font-mono tracking-wider text-[10px] text-[#002B49] uppercase">
-              SOLNEXA JAPAN ｜ 太陽光・系統用蓄電池 総合エンジニアリング
-            </span>
-          </div>
+      <div className={`max-w-7xl mx-auto px-6 lg:px-12 transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] flex items-center justify-between ${
+        isScrolled ? 'py-2 sm:py-2.5' : 'py-3.5 sm:py-4'
+      }`}>
+        
+        {/* Brand Logo Zone (Dedicated 210-230px, spacing to right menu 50-70px, logo scales down slightly on scroll) */}
+        <div className="w-[215px] sm:w-[220px] shrink-0 mr-12 xl:mr-16 flex items-center">
+          <button
+            onClick={() => {
+              onNavigateTab('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex items-center text-left focus:outline-hidden cursor-pointer group"
+            title="SOLNEXA Japan - 太陽光・系統用蓄電池総合エンジニアリング"
+          >
+            <div className={`transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] origin-left flex items-center ${
+              isScrolled ? 'w-[155px] h-[42px] scale-95' : 'w-[172px] h-[48px] scale-100'
+            }`}>
+              <SolnexaLogo size="corporate-header" variant="horizontal" showSlogan={false} />
+            </div>
+          </button>
+        </div>
 
-          {/* Right: Exact Solar Frontier Utility Links */}
-          <div className="flex items-center gap-4 lg:gap-5 font-normal">
-            <button
-              onClick={onOpenContact}
-              className="hover:text-[#002B49] transition-colors cursor-pointer flex items-center gap-1"
-              title="技術サポート・お問い合わせ"
-            >
-              <span>サポート</span>
-            </button>
-            <span className="text-slate-300">|</span>
+        {/* Right Clustered Area (Top Utility Row + Main Navigation Line) */}
+        <div className="hidden lg:flex flex-col items-end flex-1 min-w-0">
+          
+          {/* Top Utility Row (Glides up and fades out smoothly on scroll without display:none) */}
+          <div className={`w-full flex items-center justify-end gap-5 xl:gap-6 text-[11px] text-slate-500 font-normal transition-all duration-[360ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+            isScrolled
+              ? 'max-h-0 opacity-0 -translate-y-2 mb-0 overflow-hidden pointer-events-none'
+              : 'max-h-8 opacity-100 translate-y-0 mb-2 pointer-events-auto'
+          }`}>
             <button
               onClick={() => {
                 if (currentTab === 'home') {
@@ -220,144 +281,126 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             >
               お知らせ
             </button>
-            <span className="text-slate-300">|</span>
             <button
               onClick={() => setIsCatalogModalOpen(true)}
-              className="hover:text-[#002B49] transition-colors cursor-pointer flex items-center gap-1"
-              title="技術カタログ・仕様書PDFダウンロード"
+              className="hover:text-[#002B49] transition-colors cursor-pointer"
             >
-              <FileDown className="w-3 h-3 text-[#002B49]" />
-              <span>カタログダウンロード</span>
+              カタログ
             </button>
-            <span className="text-slate-300">|</span>
             <button
               onClick={() => setIsRecruitModalOpen(true)}
-              className="hover:text-[#002B49] transition-colors cursor-pointer"
+              className="hover:text-[#002B49] transition-colors cursor-pointer hidden xl:inline-block"
             >
               採用情報
             </button>
-            <span className="text-slate-300">|</span>
-            <button
-              onClick={() => setIsPartnerModalOpen(true)}
-              className="hover:text-[#002B49] transition-colors cursor-pointer"
-            >
-              販売店サイト
-            </button>
-            <span className="text-slate-300">|</span>
+
+            {/* ログイン (Utility bar: Tên user + ADMIN badge + nút logout hoặc nút ログイン) */}
+            {isLoggedIn && currentUser ? (
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
+                <span className="text-[11px] text-[#002B49] font-medium flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  <span className="truncate max-w-[130px]">{currentUser.name}</span>
+                  {currentUser.isAdmin && (
+                    <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.2 rounded tracking-wider uppercase shadow-2xs">
+                      ADMIN
+                    </span>
+                  )}
+                </span>
+                {onLogout && (
+                  <button 
+                    onClick={onLogout} 
+                    title="ログアウト" 
+                    className="text-slate-400 hover:text-[#d81a28] transition-colors p-0.5 cursor-pointer ml-0.5"
+                    aria-label="ログアウト"
+                  >
+                    <LogOut className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ) : (
+              <button
+                onClick={onOpenLogin}
+                className="hover:text-[#002B49] text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5 font-medium border-l border-slate-200 pl-3"
+                title="会員・パートナーログイン"
+              >
+                <LogIn className="w-3 h-3 text-slate-400" />
+                <span>ログイン</span>
+              </button>
+            )}
+
+            {/* Language Switcher */}
             <button
               onClick={() => setActiveLang(activeLang === 'JP' ? 'EN' : 'JP')}
-              className="font-mono text-slate-500 hover:text-[#002B49] transition-colors cursor-pointer flex items-center gap-1"
+              className="font-mono text-slate-500 hover:text-[#002B49] transition-colors cursor-pointer ml-1"
               title="言語切り替え / Switch Language"
             >
               <span className={activeLang === 'JP' ? 'font-bold text-[#002B49]' : 'text-slate-400'}>JP</span>
-              <span className="text-slate-300">/</span>
+              <span className="text-slate-300 mx-1">/</span>
               <span className={activeLang === 'EN' ? 'font-bold text-[#002B49]' : 'text-slate-400'}>EN</span>
             </button>
-
-            {/* Auth status if logged in */}
-            {isLoggedIn && currentUser && (
-              <>
-                <span className="text-slate-300">|</span>
-                <span className="text-[#002B49] font-medium flex items-center gap-1">
-                  {currentUser.name}
-                  {isAdmin && <span className="text-[9px] bg-slate-200 px-1 rounded">ADMIN</span>}
-                  {onLogout && (
-                    <button onClick={onLogout} title="ログアウト" className="text-slate-400 hover:text-slate-600 ml-1">
-                      <LogOut className="w-3 h-3" />
-                    </button>
-                  )}
-                </span>
-              </>
-            )}
           </div>
 
-        </div>
-      </div>
-
-      {/* ========================================================================= */}
-      {/* 2. MAIN NAVIGATION ROW (74px)                                             */}
-      {/* ========================================================================= */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-12 h-18 sm:h-20 flex items-center justify-between">
-        
-        {/* Brand Logo */}
-        <div className="flex items-center shrink-0">
-          <button
-            onClick={() => {
-              onNavigateTab('home');
-              window.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="flex items-center text-left focus:outline-hidden cursor-pointer group"
-            title="SOLNEXA Japan - 太陽光・系統用蓄電池総合エンジニアリング"
-          >
-            <SolnexaLogo size="md" variant="horizontal" showSlogan={false} />
-          </button>
-        </div>
-
-        {/* Desktop Bilingual Navigation (Chuẩn Solar Frontier: Tiếng Nhật chính + Tiếng Anh phụ) */}
-        <nav className="hidden lg:flex items-center gap-6 xl:gap-8 h-full">
-          {navMenuItems.map((item) => {
-            const isHovered = activeDropdown === item.id;
-            return (
-              <div
-                key={item.id}
-                className="h-full flex items-center"
-                onMouseEnter={() => item.hasPopup ? handleMouseEnter(item.id) : undefined}
-                onMouseLeave={item.hasPopup ? handleMouseLeave : undefined}
-              >
-                <button
-                  onClick={() => handleNavClick(item.id)}
-                  className={`py-2 px-1 relative flex flex-col items-start cursor-pointer group text-left transition-colors ${
-                    isHovered ? 'text-[#002B49]' : 'text-slate-800 hover:text-[#002B49]'
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-[13.5px] xl:text-[14.5px] font-semibold tracking-tight transition-colors">
-                      {item.label}
-                    </span>
-                    {item.isTools && (
-                      <span className="text-[9px] font-mono font-bold bg-[#002B49] text-amber-300 px-1 py-0.2 rounded-xs leading-none">
-                        PRO
-                      </span>
-                    )}
+          {/* Main Navigation Row (Pure Japanese, NO English subtext beneath, Airy & Clean) */}
+          <div className="flex items-center justify-between w-full gap-6 xl:gap-8">
+            <nav className="flex items-center gap-5 xl:gap-7 ml-auto">
+              {navMenuItems.map((item) => {
+                const isHovered = activeDropdown === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className="relative py-1"
+                    onMouseEnter={() => item.hasPopup ? handleMouseEnter(item.id) : undefined}
+                    onMouseLeave={item.hasPopup ? handleMouseLeave : undefined}
+                  >
+                    <button
+                      onClick={() => handleNavClick(item.id)}
+                      className={`text-[14px] xl:text-[15px] font-medium tracking-tight transition-colors flex items-center gap-1.5 cursor-pointer py-1 relative ${
+                        isHovered ? 'text-[#002B49] font-semibold' : 'text-slate-800 hover:text-[#002B49]'
+                      }`}
+                    >
+                      <span>{item.label}</span>
+                      {item.isTools && (
+                        <span className="text-[9px] font-mono font-bold bg-[#002B49] text-amber-300 px-1 py-0.2 rounded-xs leading-none">
+                          PRO
+                        </span>
+                      )}
+                      {/* Subtle hover red underline */}
+                      <span className={`absolute bottom-0 left-0 h-[2px] bg-[#d81a28] transition-all duration-[240ms] ease-[cubic-bezier(0.22,1,0.36,1)] ${
+                        isHovered ? 'w-full' : 'w-0'
+                      }`} />
+                    </button>
                   </div>
-                  <span className={`text-[10px] font-mono tracking-widest uppercase transition-colors ${
-                    isHovered ? 'text-[#d81a28] font-medium' : 'text-slate-400 group-hover:text-slate-600'
-                  }`}>
-                    {item.enLabel}
-                  </span>
+                );
+              })}
+            </nav>
 
-                  {/* Active indicator red line */}
-                  <span className={`absolute bottom-0 left-0 h-[2.5px] bg-[#d81a28] transition-all duration-300 ${
-                    isHovered ? 'w-full' : 'w-0'
-                  }`} />
-                </button>
-              </div>
-            );
-          })}
-        </nav>
+            {/* Action CTAs: Tách bạch rõ chức năng, お問い合わせ dạng text nav và 1 CTA đỏ duy nhất */}
+            <div className="flex items-center gap-4 xl:gap-5 pl-3 border-l border-slate-200 shrink-0">
+              
+              {/* お問い合わせ (Text nav bình thường, không trùng chức năng với báo giá) */}
+              <button
+                onClick={onOpenContact}
+                className="inline-flex items-center gap-1.5 text-xs xl:text-[13px] font-medium text-slate-700 hover:text-[#002B49] transition-colors duration-200 py-1 cursor-pointer whitespace-nowrap group"
+                title="一般的なお問い合わせ・技術相談"
+              >
+                <Mail className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#002B49] transition-colors" />
+                <span>お問い合わせ</span>
+              </button>
 
-        {/* Right Action CTAs (Solar Frontier Style: Mail Inquiries + Quote Button) */}
-        <div className="hidden lg:flex items-center gap-3.5 xl:gap-4">
-          
-          {/* お問い合わせ・資料請求 (Red link with mail icon as in Solar Frontier) */}
-          <button
-            onClick={onOpenContact}
-            className="inline-flex items-center gap-1.5 text-xs xl:text-sm font-semibold text-[#d81a28] hover:text-[#b91522] transition-colors py-2 px-1.5 cursor-pointer group"
-          >
-            <Mail className="w-4 h-4 text-[#d81a28]" />
-            <span className="whitespace-nowrap">お問い合わせ・資料請求</span>
-          </button>
+              {/* Prominent Red CTA Button: [無料 設計見積] (Duy nhất 1 CTA đỏ nổi bật) */}
+              <button
+                onClick={onOpenDesignQuotation || onOpenContact}
+                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wide rounded-md transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer group whitespace-nowrap"
+                title="太陽光・蓄電池の設計・概算見積書作成 (無料)"
+              >
+                <span className="text-amber-200 font-normal text-[11px]">無料</span>
+                <span>設計見積</span>
+                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-1 group-hover:-translate-y-0.5 transition-transform duration-200" />
+              </button>
 
-          {/* Prominent Action Button: 設計見積書 (Nổi bật, thu hút) */}
-          <button
-            onClick={onOpenDesignQuotation || onOpenContact}
-            className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs xl:text-sm font-bold tracking-wider rounded-md transition-all shadow-md hover:shadow-lg cursor-pointer group"
-            title="無料・設計見積書作成"
-          >
-            <span className="text-amber-300 font-normal text-[11px] bg-red-900/30 px-1 rounded-xs">無料</span>
-            <span>設計見積書</span>
-            <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-          </button>
+            </div>
+
+          </div>
 
         </div>
 
@@ -365,9 +408,9 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
         <div className="flex items-center gap-2 lg:hidden">
           <button
             onClick={onOpenDesignQuotation || onOpenContact}
-            className="px-3 py-1.5 bg-[#d81a28] text-white text-xs font-bold rounded transition-colors"
+            className="px-3 py-1.5 bg-[#d81a28] text-white text-xs font-medium rounded transition-colors"
           >
-            設計見積
+            無料 設計見積
           </button>
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
@@ -388,7 +431,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <div
         onMouseEnter={() => handleMouseEnter('business')}
         onMouseLeave={handleMouseLeave}
-        className={`absolute top-full left-0 w-full bg-white border-b border-slate-200/90 shadow-2xl z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-top before:content-[''] before:absolute before:-top-3 before:left-0 before:w-full before:h-3 ${
+        className={`absolute top-full left-0 w-full bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-[0_20px_45px_-15px_rgba(0,0,0,0.12)] z-50 transition-all duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] transform origin-top will-change-[transform,opacity] before:content-[''] before:absolute before:-top-6 before:left-0 before:w-full before:h-6 ${
           activeDropdown === 'business'
             ? 'opacity-100 translate-y-0 visible pointer-events-auto'
             : 'opacity-0 -translate-y-2 invisible pointer-events-none'
@@ -500,7 +543,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <div
         onMouseEnter={() => handleMouseEnter('works')}
         onMouseLeave={handleMouseLeave}
-        className={`absolute top-full left-0 w-full bg-white border-b border-slate-200/90 shadow-2xl z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-top before:content-[''] before:absolute before:-top-3 before:left-0 before:w-full before:h-3 ${
+        className={`absolute top-full left-0 w-full bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-[0_20px_45px_-15px_rgba(0,0,0,0.12)] z-50 transition-all duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] transform origin-top will-change-[transform,opacity] before:content-[''] before:absolute before:-top-6 before:left-0 before:w-full before:h-6 ${
           activeDropdown === 'works'
             ? 'opacity-100 translate-y-0 visible pointer-events-auto'
             : 'opacity-0 -translate-y-2 invisible pointer-events-none'
@@ -612,7 +655,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <div
         onMouseEnter={() => handleMouseEnter('tools')}
         onMouseLeave={handleMouseLeave}
-        className={`absolute top-full left-0 w-full bg-white border-b border-slate-200/90 shadow-2xl z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-top before:content-[''] before:absolute before:-top-3 before:left-0 before:w-full before:h-3 ${
+        className={`absolute top-full left-0 w-full bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-[0_20px_45px_-15px_rgba(0,0,0,0.12)] z-50 transition-all duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] transform origin-top will-change-[transform,opacity] before:content-[''] before:absolute before:-top-6 before:left-0 before:w-full before:h-6 ${
           activeDropdown === 'tools'
             ? 'opacity-100 translate-y-0 visible pointer-events-auto'
             : 'opacity-0 -translate-y-2 invisible pointer-events-none'
@@ -725,7 +768,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <div
         onMouseEnter={() => handleMouseEnter('news')}
         onMouseLeave={handleMouseLeave}
-        className={`absolute top-full left-0 w-full bg-white border-b border-slate-200/90 shadow-2xl z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-top before:content-[''] before:absolute before:-top-3 before:left-0 before:w-full before:h-3 ${
+        className={`absolute top-full left-0 w-full bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-[0_20px_45px_-15px_rgba(0,0,0,0.12)] z-50 transition-all duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] transform origin-top will-change-[transform,opacity] before:content-[''] before:absolute before:-top-6 before:left-0 before:w-full before:h-6 ${
           activeDropdown === 'news'
             ? 'opacity-100 translate-y-0 visible pointer-events-auto'
             : 'opacity-0 -translate-y-2 invisible pointer-events-none'
@@ -819,7 +862,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <div
         onMouseEnter={() => handleMouseEnter('company')}
         onMouseLeave={handleMouseLeave}
-        className={`absolute top-full left-0 w-full bg-white border-b border-slate-200/90 shadow-2xl z-50 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] transform origin-top before:content-[''] before:absolute before:-top-3 before:left-0 before:w-full before:h-3 ${
+        className={`absolute top-full left-0 w-full bg-white/98 backdrop-blur-md border-b border-slate-200/90 shadow-[0_20px_45px_-15px_rgba(0,0,0,0.12)] z-50 transition-all duration-[340ms] ease-[cubic-bezier(0.22,1,0.36,1)] transform origin-top will-change-[transform,opacity] before:content-[''] before:absolute before:-top-6 before:left-0 before:w-full before:h-6 ${
           activeDropdown === 'company'
             ? 'opacity-100 translate-y-0 visible pointer-events-auto'
             : 'opacity-0 -translate-y-2 invisible pointer-events-none'
@@ -841,18 +884,50 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                 特別高圧・高圧分野における電気主任技術者および系統解析エンジニアが結集した再生可能エネルギー総合技術企業です。
                 本社：東京都荒川区荒川5-6-7 302号 ｜ TEL: 070-8982-1052
               </p>
-              <div className="pt-1 flex items-center gap-4">
+              <div className="pt-2 flex flex-wrap items-center gap-3">
                 <button
                   onClick={() => {
                     setActiveDropdown(null);
-                    if (onOpenCompanyProfile) onOpenCompanyProfile();
-                    else handleNavClick('company');
+                    onNavigateTab('company', 'overview');
                   }}
                   className="inline-flex items-center gap-2 px-5 py-2.5 bg-[#002B49] text-white text-xs font-semibold rounded-md hover:bg-[#001D33] transition-colors cursor-pointer"
                 >
                   <Building2 className="w-3.5 h-3.5" />
-                  <span>会社概要・基本データを詳しく見る</span>
+                  <span>会社概要・基本データ</span>
                   <ArrowRight className="w-3.5 h-3.5" />
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveDropdown(null);
+                    onNavigateTab('company', 'message');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-md hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <Users className="w-3.5 h-3.5 text-slate-500" />
+                  <span>代表メッセージ</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveDropdown(null);
+                    onNavigateTab('company', 'qualifications');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-md hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5 text-slate-500" />
+                  <span>技術者体制・許認可</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveDropdown(null);
+                    onNavigateTab('company', 'access');
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 bg-slate-100 text-slate-700 text-xs font-medium rounded-md hover:bg-slate-200 transition-colors cursor-pointer"
+                >
+                  <MapPin className="w-3.5 h-3.5 text-slate-500" />
+                  <span>所在地・アクセス</span>
                 </button>
               </div>
             </div>
@@ -882,7 +957,6 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
               >
                 <div className="flex items-center gap-2">
                   <span>{item.label}</span>
-                  <span className="text-[10px] font-mono text-slate-400">({item.enLabel})</span>
                   {item.isTools && (
                     <span className="text-[10px] bg-amber-400 text-slate-900 font-bold px-1 rounded-xs">
                       PRO
@@ -901,10 +975,11 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                 if (onOpenDesignQuotation) onOpenDesignQuotation();
                 else onOpenContact();
               }}
-              className="w-full py-3 bg-[#d81a28] text-white text-xs font-bold tracking-wider rounded-md text-center cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+              className="w-full py-3 bg-[#d81a28] text-white text-xs font-medium tracking-wider rounded-md text-center cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
             >
-              <span className="text-amber-300 font-normal">無料</span>
-              <span>設計見積依頼</span>
+              <span className="text-amber-200 font-normal">無料</span>
+              <span>設計見積</span>
+              <ArrowUpRight className="w-3.5 h-3.5" />
             </button>
 
             <button
@@ -912,11 +987,77 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                 setIsMobileMenuOpen(false);
                 onOpenContact();
               }}
-              className="w-full py-2.5 border border-slate-300 text-slate-700 text-xs font-medium rounded-md text-center cursor-pointer flex items-center justify-center gap-1.5"
+              className="w-full py-2.5 border border-slate-300 text-slate-700 text-xs font-normal rounded-md text-center cursor-pointer flex items-center justify-center gap-1.5 hover:bg-slate-50"
             >
-              <Mail className="w-3.5 h-3.5 text-[#d81a28]" />
-              <span>お問い合わせ・資料請求</span>
+              <Mail className="w-3.5 h-3.5 text-slate-400" />
+              <span>お問い合わせ</span>
             </button>
+
+            {/* Mobile Auth Button / Status */}
+            <div className="pt-2">
+              {isLoggedIn && currentUser ? (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                    <div className="truncate">
+                      <p className="text-xs font-bold text-slate-900 truncate">{currentUser.name}</p>
+                      <p className="text-[10px] text-slate-500 font-mono truncate">{currentUser.email}</p>
+                    </div>
+                    {currentUser.isAdmin && (
+                      <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.5 rounded tracking-wider uppercase shrink-0">
+                        ADMIN
+                      </span>
+                    )}
+                  </div>
+                  {onLogout && (
+                    <button
+                      onClick={() => {
+                        setIsMobileMenuOpen(false);
+                        onLogout();
+                      }}
+                      className="text-xs font-medium text-rose-600 hover:text-rose-700 flex items-center gap-1 px-2 py-1 rounded bg-rose-50 border border-rose-200 cursor-pointer shrink-0 ml-2"
+                      title="ログアウト"
+                    >
+                      <LogOut className="w-3.5 h-3.5" />
+                      <span>ログアウト</span>
+                    </button>
+                  )}
+                </div>
+              ) : (
+                <button
+                  onClick={() => {
+                    setIsMobileMenuOpen(false);
+                    onOpenLogin();
+                  }}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-[#002B49] text-xs font-bold rounded-md flex items-center justify-center gap-2 cursor-pointer transition-colors border border-slate-200"
+                >
+                  <LogIn className="w-4 h-4 text-slate-500" />
+                  <span>ログイン</span>
+                </button>
+              )}
+            </div>
+
+            <div className="pt-1 flex items-center justify-between text-xs text-slate-500 border-t border-slate-100">
+              <button
+                onClick={() => {
+                  setIsMobileMenuOpen(false);
+                  setIsCatalogModalOpen(true);
+                }}
+                className="hover:text-[#002B49] flex items-center gap-1 py-1"
+              >
+                <FileDown className="w-3.5 h-3.5" />
+                <span>カタログダウンロード</span>
+              </button>
+
+              <button
+                onClick={() => setActiveLang(activeLang === 'JP' ? 'EN' : 'JP')}
+                className="font-mono text-slate-600 px-2 py-0.5 rounded border border-slate-200"
+              >
+                <span className={activeLang === 'JP' ? 'font-bold text-[#002B49]' : 'text-slate-400'}>JP</span>
+                <span className="text-slate-300 mx-0.5">/</span>
+                <span className={activeLang === 'EN' ? 'font-bold text-[#002B49]' : 'text-slate-400'}>EN</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -174,8 +174,8 @@ export const ProjectsView: React.FC<ProjectsViewProps> = ({
           <h1 className="text-2xl sm:text-4xl font-extrabold tracking-tight">
             導入実績・プロジェクト事例
           </h1>
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">
-            日本全国の特別高圧系統用蓄電所（40MW+）、FIP太陽光＋蓄電池併設、自家消費PPAなど、厳しい日本の法令・系統連系基準をクリアした代表的なプロジェクト実績をご紹介します。
+          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed font-normal">
+            日本全国の特別高圧系統用蓄電所、FIP太陽光＋蓄電池併設、自家消費PPAなど、日本の法令・系統連系技術基準に準拠した代表的な設計・検討モデルケースをご紹介します。（※ 技術検証・設計シミュレーションモデルを含みます）
           </p>
         </div>
       </div>

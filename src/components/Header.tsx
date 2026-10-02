@@ -34,6 +34,10 @@ interface HeaderProps {
   isSidebarCollapsed: boolean;
   onOpenSettings?: () => void;
   onBackToCorporate?: () => void;
+  currentUser?: any;
+  isLoggedIn?: boolean;
+  onLogout?: () => void;
+  onOpenLogin?: () => void;
 }
 
 const TAB_LABELS: Record<string, string> = {
@@ -90,7 +94,11 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectProjectSubView,
   onToggleMobileSidebar,
   onOpenSettings,
-  onBackToCorporate
+  onBackToCorporate,
+  currentUser,
+  isLoggedIn = false,
+  onLogout,
+  onOpenLogin
 }) => {
   const isWorkspace = activeTab === 'workspace';
 
@@ -443,85 +451,119 @@ export const Header: React.FC<HeaderProps> = ({
           <SettingsIcon className="w-4 h-4" />
         </button>
 
-        {/* User Profile Avatar "HT" (Hoàng Tuấn) with interactive menu */}
-        <div ref={profileRef} className="relative">
-          <div
-            onClick={() => setIsProfileOpen(!isProfileOpen)}
-            className="flex items-center space-x-2 pl-1 cursor-pointer select-none group"
-            title="Hoàng Tuấn - Lead Engineer"
-          >
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-700 to-blue-500 text-white font-bold text-xs flex items-center justify-center shadow-xs ring-2 ring-transparent group-hover:ring-blue-400/40 transition-all">
-              HT
-            </div>
-            <div className="hidden sm:block text-left leading-tight">
-              <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors">
-                Hoàng Tuấn
+        {/* User Profile or Login Button */}
+        {isLoggedIn && currentUser ? (
+          <div ref={profileRef} className="relative">
+            <div
+              onClick={() => setIsProfileOpen(!isProfileOpen)}
+              className="flex items-center space-x-2 pl-1 cursor-pointer select-none group"
+              title={`${currentUser.name} - ${currentUser.role}`}
+            >
+              <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-blue-700 to-blue-500 text-white font-bold text-xs flex items-center justify-center shadow-xs ring-2 ring-transparent group-hover:ring-blue-400/40 transition-all uppercase">
+                {currentUser.name ? currentUser.name.slice(0, 2) : 'US'}
               </div>
-              <div className="text-[10px] text-slate-400 font-medium">
-                Lead Engineer
-              </div>
-            </div>
-          </div>
-
-          {isProfileOpen && (
-            <div className="absolute top-full mt-2 right-0 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in duration-100">
-              <div className="p-4 bg-slate-900 text-white">
-                <div className="flex items-center space-x-3">
-                  <div className="w-10 h-10 rounded-full bg-blue-600 font-black text-sm flex items-center justify-center ring-2 ring-white/30">
-                    HT
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-bold text-sm text-white truncate">Hoàng Anh Tuấn</div>
-                    <div className="text-[11px] text-amber-300 font-mono">hoanganhtuan.solnexa@gmail.com</div>
-                    <div className="text-[10px] text-slate-300">代表 / 最高技術責任者・サイト全権管理者 (Admin)</div>
-                    <div className="text-[9px] text-slate-400 font-mono mt-0.5">TEL: 070-8982-1052</div>
-                  </div>
+              <div className="hidden sm:block text-left leading-tight">
+                <div className="text-xs font-bold text-slate-900 group-hover:text-blue-600 transition-colors flex items-center gap-1.5">
+                  <span className="truncate max-w-[110px]">{currentUser.name}</span>
+                  {currentUser.isAdmin && (
+                    <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.2 rounded tracking-wider uppercase">
+                      ADMIN
+                    </span>
+                  )}
+                </div>
+                <div className="text-[10px] text-slate-400 font-medium truncate max-w-[120px]">
+                  {currentUser.role || 'Partner Engineer'}
                 </div>
               </div>
-
-              <div className="p-2 text-xs space-y-1">
-                <button
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    onOpenSettings?.();
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors"
-                >
-                  <SettingsIcon className="w-4 h-4 text-slate-400" />
-                  <span>Platform &amp; AI Settings (設定)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    onSelectTab('price-book');
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors"
-                >
-                  <FileSpreadsheet className="w-4 h-4 text-slate-400" />
-                  <span>Commercial Price Book (価格マスタ)</span>
-                </button>
-                <button
-                  onClick={() => {
-                    setIsProfileOpen(false);
-                    onSelectTab('datasheets');
-                  }}
-                  className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors"
-                >
-                  <Shield className="w-4 h-4 text-slate-400" />
-                  <span>Standards &amp; Datasheets (規格)</span>
-                </button>
-              </div>
-
-              <div className="p-2 border-t border-slate-100 text-[11px] text-slate-500 bg-slate-50 flex items-center justify-between">
-                <span>SOLNEXA v1.6.0 Pro</span>
-                <span className="text-emerald-600 font-bold flex items-center space-x-1">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                  <span>Connected</span>
-                </span>
-              </div>
             </div>
-          )}
-        </div>
+
+            {isProfileOpen && (
+              <div className="absolute top-full mt-2 right-0 w-64 bg-white rounded-xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in duration-100">
+                <div className="p-4 bg-slate-900 text-white">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 rounded-full bg-blue-600 font-black text-sm flex items-center justify-center ring-2 ring-white/30 uppercase">
+                      {currentUser.name ? currentUser.name.slice(0, 2) : 'US'}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="font-bold text-sm text-white truncate flex items-center gap-1.5">
+                        <span>{currentUser.name}</span>
+                        {currentUser.isAdmin && (
+                          <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.2 rounded uppercase">
+                            ADMIN
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[11px] text-amber-300 font-mono truncate">{currentUser.email}</div>
+                      <div className="text-[10px] text-slate-300 truncate">{currentUser.role}</div>
+                      <div className="text-[9px] text-slate-400 truncate">{currentUser.company}</div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-2 text-xs space-y-1">
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onOpenSettings?.();
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors cursor-pointer"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-slate-400" />
+                    <span>Platform &amp; AI Settings (設定)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onSelectTab('price-book');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors cursor-pointer"
+                  >
+                    <FileSpreadsheet className="w-4 h-4 text-slate-400" />
+                    <span>Commercial Price Book (価格マスタ)</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      setIsProfileOpen(false);
+                      onSelectTab('datasheets');
+                    }}
+                    className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-100 text-slate-700 font-medium flex items-center space-x-2.5 transition-colors cursor-pointer"
+                  >
+                    <Shield className="w-4 h-4 text-slate-400" />
+                    <span>Standards &amp; Datasheets (規格)</span>
+                  </button>
+                  {onLogout && (
+                    <button
+                      onClick={() => {
+                        setIsProfileOpen(false);
+                        onLogout();
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-rose-50 text-rose-600 font-medium flex items-center space-x-2.5 transition-colors cursor-pointer border-t border-slate-100 pt-2"
+                    >
+                      <LogOut className="w-4 h-4 text-rose-500" />
+                      <span>ログアウト (Logout)</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="p-2 border-t border-slate-100 text-[11px] text-slate-500 bg-slate-50 flex items-center justify-between">
+                  <span>SOLNEXA v1.6.0 Pro</span>
+                  <span className="text-emerald-600 font-bold flex items-center space-x-1">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                    <span>Connected</span>
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={onOpenLogin}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#002B49] hover:bg-[#001D33] text-white text-xs font-semibold rounded-lg shadow-2xs transition-colors cursor-pointer"
+          >
+            <User className="w-3.5 h-3.5 text-slate-300" />
+            <span>ログイン</span>
+          </button>
+        )}
       </div>
     </header>
   );

@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { APP_IMAGES } from '../solarAssets';
 import { CorporateTab } from './CorporateHeader';
+import { ScrollReveal } from './ScrollReveal';
 
 interface CorporateHomeViewProps {
   onNavigateTab: (tab: CorporateTab, subTab?: string) => void;
@@ -145,17 +146,17 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
             );
           })}
 
-          {/* Clean gradient scrim for high typographic clarity */}
-          <div className="absolute inset-0 z-2 bg-gradient-to-r from-white/95 via-white/85 to-white/20 lg:w-3/4" />
-          <div className="absolute inset-0 z-2 bg-gradient-to-t from-white/80 via-transparent to-transparent" />
+          {/* Refined gradient scrim: reduced by ~15% opacity so the rich engineering photography looks vivid and expensive */}
+          <div className="absolute inset-0 z-2 bg-gradient-to-r from-white/82 via-white/65 to-transparent lg:w-[58%]" />
+          <div className="absolute inset-0 z-2 bg-gradient-to-t from-white/60 via-transparent to-transparent" />
         </div>
 
-        {/* Hero Content */}
+        {/* Hero Content with Staggered Entrance on Slide Change */}
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24 w-full">
-          <div className="max-w-2xl space-y-7">
+          <div key={currentSlide} className="max-w-2xl space-y-7">
             
-            {/* Minimal Brand Kicker & Facility Location Badge */}
-            <div className="flex flex-wrap items-center gap-3">
+            {/* 1. Minimal Brand Kicker & Facility Location Badge (Delay: 0ms) */}
+            <div className="flex flex-wrap items-center gap-3 animate-hero-fade-up [animation-delay:0ms]">
               <div className="flex items-center gap-2">
                 <span className="w-2 h-2 rounded-full bg-[#d81a28] animate-pulse" />
                 <p className="text-xs font-semibold tracking-[0.25em] text-[#002B49] uppercase font-mono">
@@ -168,21 +169,29 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               </span>
             </div>
 
-            {/* Hero Main Headline (Restrained, bold 700, no black) */}
-            <h1 className="text-4xl sm:text-6xl lg:text-7xl font-bold text-[#002B49] tracking-tight leading-[1.18] transition-all duration-500 whitespace-pre-line">
-              {activeSlideData.headline}
+            {/* 2. Hero Main Headline (Delay: 90ms) */}
+            <h1 className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.25] jp-heading animate-hero-fade-up [animation-delay:90ms]">
+              {activeSlideData.headline.split('\n').map((line, idx) => (
+                <span key={idx} className="block">
+                  <span className="jp-chunk">{line}</span>
+                </span>
+              ))}
             </h1>
 
-            {/* Subtitle (17px, line-height 1.85, regular 400) */}
-            <p className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl transition-all duration-500 whitespace-pre-line">
-              {activeSlideData.subhead}
+            {/* 3. Subtitle (Delay: 180ms) */}
+            <p className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading animate-hero-fade-up [animation-delay:180ms]">
+              {activeSlideData.subhead.split('\n').map((line, idx) => (
+                <span key={idx} className="block">
+                  <span className="jp-chunk">{line}</span>
+                </span>
+              ))}
             </p>
 
-            {/* Max 2 CTAs */}
-            <div className="pt-2 flex flex-wrap items-center gap-4">
+            {/* 4. Max 2 CTAs (Delay: 260ms) */}
+            <div className="pt-2 flex flex-wrap items-center gap-4 animate-hero-fade-up [animation-delay:260ms]">
               <button
                 onClick={() => handleScrollTo('business')}
-                className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#002B49] hover:bg-[#001D33] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-all shadow-xs cursor-pointer group"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#002B49] hover:bg-[#001D33] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-xs cursor-pointer group"
               >
                 <span>私たちについてを見る</span>
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -190,7 +199,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
 
               <button
                 onClick={onOpenEngineeringTools}
-                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/90 hover:bg-white active:scale-98 text-[#002B49] border border-slate-300 hover:border-slate-400 text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-all shadow-2xs cursor-pointer group"
+                className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/90 hover:bg-white active:scale-98 text-[#002B49] border border-slate-300 hover:border-slate-400 text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-2xs cursor-pointer group"
               >
                 <span>TOOLSを使う</span>
                 <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-[#002B49] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
@@ -287,9 +296,10 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               <span className="text-xs font-semibold text-slate-400 tracking-widest font-mono">
                 01 DESIGN
               </span>
-              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-[#002B49] tracking-tight leading-snug">
-                特別高圧・高圧受変電から、<br className="hidden sm:inline" />
-                アレイ最適設計まで。
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-[#002B49] tracking-tight leading-snug jp-heading">
+                <span className="jp-chunk">特別高圧・高圧受変電から、</span>
+                <br className="hidden sm:inline" />
+                <span className="jp-chunk">アレイ最適設計まで。</span>
               </h3>
               <p className="text-slate-600 text-base leading-[1.85] font-normal">
                 地質・日射環境調査に基づき、耐風圧架台力学計算やJIS C 3605規格ケーブルの最適選定を実施。一般送配電事業者との系統連系協議に耐えうる高精度な設計図書を作成します。
@@ -312,9 +322,10 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               <span className="text-xs font-semibold text-slate-400 tracking-widest font-mono">
                 02 CONSTRUCTION SUPPORT
               </span>
-              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-[#002B49] tracking-tight leading-snug">
-                消防法と電気事業法を、<br className="hidden sm:inline" />
-                確実にクリアする現場支援。
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-[#002B49] tracking-tight leading-snug jp-heading">
+                <span className="jp-chunk">消防法と電気事業法を、</span>
+                <br className="hidden sm:inline" />
+                <span className="jp-chunk">確実にクリアする現場支援。</span>
               </h3>
               <p className="text-slate-600 text-base leading-[1.85] font-normal">
                 総務省消防庁告示第2号に基づく屋外蓄電池保有空地3m離隔協議から、経済産業省・産業保安監督部への第48条工事計画届出まで、現場実務を一貫支援します。
@@ -355,9 +366,10 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               <span className="text-xs font-semibold text-slate-400 tracking-widest font-mono">
                 03 SIMULATION
               </span>
-              <h3 className="text-2xl sm:text-3xl lg:text-4xl font-semibold text-[#002B49] tracking-tight leading-snug">
-                20年間の投資価値を守る、<br className="hidden sm:inline" />
-                高精度発電・充放電解析。
+              <h3 className="text-xl sm:text-2xl lg:text-3xl font-semibold text-[#002B49] tracking-tight leading-snug jp-heading">
+                <span className="jp-chunk">20年間の投資価値を守る、</span>
+                <br className="hidden sm:inline" />
+                <span className="jp-chunk">高精度発電・充放電解析。</span>
               </h3>
               <p className="text-slate-600 text-base leading-[1.85] font-normal">
                 気象データとアレイ影損失を精密に算定し、年間PR値やインバランスリスクをシミュレーション。FIP市場や容量市場に最適化された運用モデルをご提案します。
@@ -514,9 +526,9 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               <span className="text-xs font-semibold tracking-[0.2em] text-[#002B49] uppercase font-mono">
                 03 ｜ AI TECHNICAL CONSULT
               </span>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#002B49] tracking-tight leading-tight">
-                技術相談を、<br />
-                もっと身近に。
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#002B49] tracking-tight leading-snug jp-heading">
+                <span className="jp-chunk">技術相談を、</span>
+                <span className="jp-chunk">もっと身近に。</span>
               </h2>
               <p className="text-slate-600 text-base leading-[1.85] font-normal">
                 消防法告示第2号の保有空地基準、特別高圧受変電の系統連系指針、電気事業法の届出要件など、専門知識が必要な疑問に専門エンジニアの知見をベースとしたAIが即座に回答します。
@@ -739,20 +751,18 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               <span className="text-xs font-semibold tracking-[0.2em] text-[#002B49] uppercase font-mono">
                 06 ｜ COMPANY PROFILE
               </span>
-              <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-[#002B49] tracking-tight leading-tight">
-                エネルギーインフラの信頼性を、<br />
-                妥協なき工学設計で支える。
+              <h2 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#002B49] tracking-tight leading-snug jp-heading">
+                <span className="jp-chunk">エネルギーインフラの信頼性を、</span>
+                <br className="hidden sm:inline" />
+                <span className="jp-chunk">妥協なき工学設計で支える。</span>
               </h2>
               <p className="text-slate-600 text-base leading-[1.85] font-normal max-w-2xl">
                 株式会社ソルネクサ（SOLNEXA）は、東京都荒川区を拠点に、特別高圧・高圧分野における電気主任技術者および系統解析エンジニアが結集した再生可能エネルギー総合技術企業です。太陽光発電および系統用蓄電池の基本設計から系統連系協議、実務ツールの開発まで、プロジェクトの長期的な信頼性を支えます。
               </p>
               <div className="pt-2">
                 <button
-                  onClick={() => {
-                    if (onOpenCompanyProfile) onOpenCompanyProfile();
-                    else onOpenContact();
-                  }}
-                  className="inline-flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-[#002B49] text-xs sm:text-[13px] font-medium rounded-md transition-all shadow-2xs cursor-pointer group"
+                  onClick={() => onNavigateTab('company')}
+                  className="inline-flex items-center gap-2 px-6 py-3.5 bg-white hover:bg-slate-50 border border-slate-300 hover:border-slate-400 text-[#002B49] text-xs sm:text-[13px] font-medium rounded-md transition-colors shadow-2xs cursor-pointer group"
                 >
                   <Building2 className="w-4 h-4 text-slate-500" />
                   <span>会社概要・企業情報を詳しく見る</span>

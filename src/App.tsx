@@ -29,6 +29,7 @@ import { ProductsView } from './components/corporate/ProductsView';
 import { ProjectsView } from './components/corporate/ProjectsView';
 import { NewsView } from './components/corporate/NewsView';
 import { AiConsultantView } from './components/corporate/AiConsultantView';
+import { CompanyView, CompanySubTab } from './components/corporate/CompanyView';
 import { LoginModal } from './components/corporate/LoginModal';
 import { ContactModal } from './components/corporate/ContactModal';
 import { CompanyProfileModal } from './components/corporate/CompanyProfileModal';
@@ -37,6 +38,7 @@ export default function App() {
   // Top-level mode: 'corporate' (Portal website) vs 'engineering' (Comprehensive Design Workspace)
   const [portalMode, setPortalMode] = useState<'corporate' | 'engineering'>('corporate');
   const [corporateTab, setCorporateTab] = useState<CorporateTab>('home');
+  const [companySubTab, setCompanySubTab] = useState<CompanySubTab>('overview');
   const [activeTab, setActiveTab] = useState<ActiveTab>('dashboard');
   const [activeProjectId, setActiveProjectId] = useState<string>('proj-chiba-solar');
   const [projectSubView, setProjectSubView] = useState<ProjectSubView>('overview');
@@ -54,10 +56,22 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
 
   useEffect(() => {
-    // Clear any stale cached admin logins to ensure clean unauthenticated guest view on reload
-    try {
-      localStorage.removeItem('solnexa_user');
-    } catch {}
+    // Check real backend session via HttpOnly signed cookie on initial load
+    fetch('/api/auth/me', { credentials: 'include' })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.user) {
+          setCurrentUser(data.user);
+          setIsLoggedIn(true);
+        } else {
+          setCurrentUser(null);
+          setIsLoggedIn(false);
+        }
+      })
+      .catch(() => {
+        setCurrentUser(null);
+        setIsLoggedIn(false);
+      });
   }, []);
 
   const handleLoginSuccess = (user: any) => {
@@ -65,12 +79,17 @@ export default function App() {
     setIsLoggedIn(true);
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
     setIsLoggedIn(false);
     setCurrentUser(null);
-    try {
-      localStorage.removeItem('solnexa_user');
-    } catch {}
   };
 
   const handleNavigateCorporate = (tab: CorporateTab, subTab?: string) => {
@@ -78,6 +97,10 @@ export default function App() {
     if (tab === 'solutions' && subTab) {
       setSolutionSubTab(subTab as any);
     }
+    if (tab === 'company' && subTab) {
+      setCompanySubTab(subTab as CompanySubTab);
+    }
+    setIsCompanyProfileOpen(false);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -233,7 +256,7 @@ export default function App() {
             setIsContactModalOpen(true);
           }}
           onOpenDesignQuotation={handleOpenDesignQuotation}
-          onOpenCompanyProfile={() => setIsCompanyProfileOpen(true)}
+          onOpenCompanyProfile={() => handleNavigateCorporate('company')}
           isLoggedIn={isLoggedIn}
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -268,7 +291,7 @@ export default function App() {
                     setContactDefaultType('technical_consulting');
                     setIsContactModalOpen(true);
                   }}
-                  onOpenCompanyProfile={() => setIsCompanyProfileOpen(true)}
+                  onOpenCompanyProfile={() => handleNavigateCorporate('company')}
                   onOpenLogin={() => setIsLoginModalOpen(true)}
                   isLoggedIn={isLoggedIn}
                   isAdmin={Boolean(currentUser?.isAdmin)}
@@ -366,6 +389,18 @@ export default function App() {
                       }}
                     />
                   )}
+
+                  {corporateTab === 'company' && (
+                    <CompanyView
+                      initialTab={companySubTab}
+                      onOpenContact={() => {
+                        setContactDefaultType('technical_consulting');
+                        setIsContactModalOpen(true);
+                      }}
+                      onOpenDesignQuotation={handleOpenDesignQuotation}
+                      onNavigateTab={handleNavigateCorporate}
+                    />
+                  )}
                 </div>
               )}
             </motion.div>
@@ -387,7 +422,7 @@ export default function App() {
             setContactDefaultType('technical_consulting');
             setIsContactModalOpen(true);
           }}
-          onOpenCompanyProfile={() => setIsCompanyProfileOpen(true)}
+          onOpenCompanyProfile={() => handleNavigateCorporate('company')}
         />
 
         {/* Modals */}
@@ -475,6 +510,10 @@ export default function App() {
             setPortalMode('corporate');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
+          currentUser={currentUser}
+          isLoggedIn={isLoggedIn}
+          onLogout={handleLogout}
+          onOpenLogin={() => setIsLoginModalOpen(true)}
         />
 
         {/* Animated Main Content View */}

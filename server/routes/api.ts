@@ -8,6 +8,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import multer from 'multer';
 import fs from 'fs';
 import path from 'path';
+import crypto from 'crypto';
 import { db } from '../db/database';
 import { pdfIngestionPipeline } from '../services/pdfIngestionPipeline';
 import { reviewService } from '../services/reviewService';
@@ -16,6 +17,172 @@ import { aiProviderManager } from '../services/ai/aiProviderManager';
 import { EquipmentCategoryCode, AIProviderId } from '../../src/types';
 
 export const apiRouter = Router();
+
+// --- Section: User & Session Storage (Zero global currentUser, HttpOnly cookies, secure verification) ---
+export interface PortalUser {
+  id: string;
+  name: string;
+  company: string;
+  role: string;
+  email: string;
+  tier: string;
+  isAdmin: boolean;
+  avatar?: string;
+  createdAt?: string;
+}
+
+export interface PortalUserRecord extends PortalUser {
+  passwordHash: string;
+  salt: string;
+  altPasswordHash?: string;
+}
+
+export interface UserSession {
+  token: string;
+  userId: string;
+  user: PortalUser;
+  createdAt: number;
+  expiresAt: number;
+}
+
+// Password hashing with salt
+export function hashPassword(password: string, salt: string): string {
+  return crypto.createHash('sha256').update(password + salt).digest('hex');
+}
+
+export function verifyPassword(password: string, user: PortalUserRecord): boolean {
+  const hash = hashPassword(password, user.salt);
+  try {
+    if (crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
+      return true;
+    }
+  } catch {}
+  if (user.altPasswordHash) {
+    try {
+      if (crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.altPasswordHash, 'hex'))) {
+        return true;
+      }
+    } catch {}
+  }
+  return false;
+}
+
+// Persistent User Store with hashed credentials
+const ADMIN_SALT = 'solnexa-admin-salt-999';
+const USER_SALT = 'solnexa-user-salt-333';
+
+export const usersDatabase: PortalUserRecord[] = [
+  {
+    id: 'user-admin',
+    name: 'Hoàng Anh Tuấn (CTO / サイト全権管理者)',
+    company: '株式会社ソルネクサ (SOLNEXA Japan)',
+    role: '代表 / 最高技術責任者・サイト全権管理者',
+    email: 'hoanganhtuan.solnexa@gmail.com',
+    tier: 'Super Administrator',
+    isAdmin: true,
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    salt: ADMIN_SALT,
+    passwordHash: hashPassword('SolnexaAdmin#2026', ADMIN_SALT),
+    altPasswordHash: hashPassword('Hoangtuan26', ADMIN_SALT),
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'user-admin-personal',
+    name: 'Hoàng Anh Tuấn (CTO / サイト全権管理者)',
+    company: '株式会社ソルネクサ (SOLNEXA Japan)',
+    role: '代表 / 最高技術責任者・サイト全権管理者',
+    email: 'hoanganhtuan558@gmail.com',
+    tier: 'Super Administrator',
+    isAdmin: true,
+    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+    salt: ADMIN_SALT,
+    passwordHash: hashPassword('SolnexaAdmin#2026', ADMIN_SALT),
+    altPasswordHash: hashPassword('Hoangtuan26', ADMIN_SALT),
+    createdAt: '2026-01-01T00:00:00.000Z'
+  },
+  {
+    id: 'user-01',
+    name: '佐藤 雅彦 (主任技術者)',
+    company: '日本グリーンエナジーキャピタル合同会社',
+    role: '発電事業技術担当エンジニア',
+    email: 'engineer@solnexa.co.jp',
+    tier: 'Certified Engineer Partner',
+    isAdmin: false,
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+    salt: USER_SALT,
+    passwordHash: hashPassword('Partner#2026!', USER_SALT),
+    createdAt: '2026-01-01T00:00:00.000Z'
+  }
+];
+
+// Per-User In-Memory Session Store
+export const sessionsStore = new Map<string, UserSession>();
+
+// Cleanup expired sessions periodically
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, session] of sessionsStore.entries()) {
+    if (session.expiresAt < now) {
+      sessionsStore.delete(token);
+    }
+  }
+}, 5 * 60 * 1000);
+
+// Authentication Middleware: extract session from HttpOnly Cookie or Bearer header
+export const authenticateSession = (req: Request, _res: Response, next: NextFunction) => {
+  let token: string | undefined;
+
+  // 1. Signed or plain cookie
+  if (req.cookies && req.cookies.solnexa_session) {
+    token = req.cookies.solnexa_session;
+  } else if ((req as any).signedCookies && (req as any).signedCookies.solnexa_session) {
+    token = (req as any).signedCookies.solnexa_session;
+  }
+
+  // 2. Authorization Bearer header
+  if (!token && req.headers.authorization) {
+    const parts = req.headers.authorization.split(' ');
+    if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+      token = parts[1];
+    }
+  }
+
+  if (token) {
+    const session = sessionsStore.get(token);
+    if (session && session.expiresAt > Date.now()) {
+      (req as any).user = session.user;
+      (req as any).sessionToken = token;
+      return next();
+    }
+  }
+
+  (req as any).user = null;
+  next();
+};
+
+export const requireAuth = (req: Request, res: Response, next: NextFunction) => {
+  if (!(req as any).user) {
+    return res.status(401).json({
+      error: '認証が必要です',
+      message: 'この操作を実行するにはログインが必要です。'
+    });
+  }
+  next();
+};
+
+export const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  const user = (req as any).user;
+  if (!user || !user.isAdmin) {
+    return res.status(403).json({
+      error: '管理者権限が必要です',
+      message: 'この操作を実行する権限がありません。管理者としてログインしてください。'
+    });
+  }
+  next();
+};
+
+// Mount session authenticator on all API routes
+apiRouter.use(authenticateSession);
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -490,57 +657,9 @@ apiRouter.post('/inquiries', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.get('/inquiries', (req: Request, res: Response) => {
+apiRouter.get('/inquiries', requireAdmin, (_req: Request, res: Response) => {
   res.json(corporateInquiries);
 });
-
-// Demo and active accounts for corporate member portal
-interface PortalUser {
-  id: string;
-  name: string;
-  company: string;
-  role: string;
-  email: string;
-  tier: string;
-  isAdmin: boolean;
-  avatar?: string;
-  createdAt?: string;
-}
-
-const usersDatabase: PortalUser[] = [
-  {
-    id: 'user-admin',
-    name: 'Hoàng Anh Tuấn (管理者・CTO)',
-    company: '株式会社ソルネクサ (SOLNEXA)',
-    role: '代表 / 最高技術責任者・サイト全権管理者',
-    email: 'hoanganhtuan.solnexa@gmail.com',
-    tier: 'Super Administrator',
-    isAdmin: true,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80'
-  },
-  {
-    id: 'user-01',
-    name: '田中 健太郎',
-    company: '大和エネルギーエンジニアリング株式会社',
-    role: 'EPC統括エンジニア',
-    email: 'k.tanaka@daiwa-energy-eng.co.jp',
-    tier: 'Enterprise Partner',
-    isAdmin: false,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80'
-  },
-  {
-    id: 'user-02',
-    name: '佐藤 雅彦',
-    company: '日本グリーンエナジーキャピタル合同会社',
-    role: '発電事業投資・アセットマネージャー',
-    email: 'm.sato@green-capital.jp',
-    tier: 'Asset Owner',
-    isAdmin: false,
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80'
-  }
-];
-
-let currentUser: PortalUser | null = usersDatabase[0]; // default logged in as Hoàng Anh Tuấn (Admin)
 
 apiRouter.get('/company/info', (_req: Request, res: Response) => {
   res.json({
@@ -577,7 +696,7 @@ apiRouter.get('/site-config', (_req: Request, res: Response) => {
 });
 
 // Save persistent site visual configuration (Admin only)
-apiRouter.post('/site-config', (req: Request, res: Response) => {
+apiRouter.post('/site-config', requireAdmin, (req: Request, res: Response) => {
   try {
     const configData = req.body;
     if (!configData || !configData.hero) {
@@ -588,7 +707,7 @@ apiRouter.post('/site-config', (req: Request, res: Response) => {
       fs.mkdirSync(dataDir, { recursive: true });
     }
     configData.lastUpdated = new Date().toISOString();
-    configData.updatedBy = currentUser ? currentUser.name : 'Hoàng Anh Tuấn (Admin)';
+    configData.updatedBy = (req as any).user ? (req as any).user.name : 'Administrator';
     fs.writeFileSync(SITE_CONFIG_FILE, JSON.stringify(configData, null, 2), 'utf-8');
     res.json({ success: true, message: 'サイト設定が正常に保存・更新されました。', config: configData });
   } catch (err: any) {
@@ -596,11 +715,28 @@ apiRouter.post('/site-config', (req: Request, res: Response) => {
   }
 });
 
+function sanitizeUser(u: PortalUserRecord | PortalUser): PortalUser {
+  return {
+    id: u.id,
+    name: u.name,
+    company: u.company,
+    role: u.role,
+    email: u.email,
+    tier: u.tier,
+    isAdmin: Boolean(u.isAdmin),
+    avatar: u.avatar,
+    createdAt: u.createdAt
+  };
+}
+
 apiRouter.post('/auth/register', (req: Request, res: Response) => {
   try {
     const { name, email, company, role, password } = req.body;
-    if (!name || !email) {
-      return res.status(400).json({ error: 'お名前とメールアドレスは必須です。' });
+    if (!name || !email || !password) {
+      return res.status(400).json({ error: 'お名前、メールアドレス、パスワードは必須です。' });
+    }
+    if (String(password).length < 6) {
+      return res.status(400).json({ error: 'パスワードは6文字以上で入力してください。' });
     }
     const cleanEmail = email.toLowerCase().trim();
     const existing = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
@@ -608,24 +744,46 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
       return res.status(400).json({ error: 'このメールアドレスは既に登録されています。ログインしてください。' });
     }
 
-    const isAdmin = cleanEmail === 'hoanganhtuan.solnexa@gmail.com' || cleanEmail.includes('admin') || cleanEmail === 'admin@solnexa.co.jp';
-    const newUser: PortalUser = {
+    const salt = crypto.randomBytes(16).toString('hex');
+    const newUserRecord: PortalUserRecord = {
       id: `usr-${Date.now().toString(36)}`,
-      name,
+      name: String(name).trim(),
       email: cleanEmail,
-      company: company || '一般会員',
-      role: role || 'エンジニア',
-      tier: isAdmin ? 'Super Administrator' : 'Standard Member',
-      isAdmin,
+      company: company ? String(company).trim() : '一般会員',
+      role: role ? String(role).trim() : 'エンジニア',
+      tier: 'Standard Member',
+      isAdmin: false,
       avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
+      salt,
+      passwordHash: hashPassword(String(password), salt),
       createdAt: new Date().toISOString()
     };
-    usersDatabase.unshift(newUser);
-    currentUser = newUser;
+    usersDatabase.push(newUserRecord);
+
+    const safeUser = sanitizeUser(newUserRecord);
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    const maxAge = 7 * 24 * 60 * 60 * 1000;
+
+    sessionsStore.set(sessionToken, {
+      token: sessionToken,
+      userId: safeUser.id,
+      user: safeUser,
+      createdAt: Date.now(),
+      expiresAt: Date.now() + maxAge
+    });
+
+    res.cookie('solnexa_session', sessionToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge,
+      signed: true
+    });
 
     res.json({
       success: true,
-      user: newUser,
+      token: sessionToken,
+      user: safeUser,
       message: 'アカウントが正常に登録されました。すべての専門機能をご利用いただけます。'
     });
   } catch (err: any) {
@@ -634,50 +792,72 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
 });
 
 apiRouter.post('/auth/login', (req: Request, res: Response) => {
-  const { email, userId, password } = req.body;
-  if (userId) {
-    const found = usersDatabase.find(u => u.id === userId);
-    if (found) {
-      currentUser = found;
-      return res.json({ success: true, user: currentUser });
-    }
+  const { email, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください。' });
   }
 
-  if (email) {
-    const cleanEmail = email.toLowerCase().trim();
-    // Special admin match for hoanganhtuan.solnexa@gmail.com
-    if (cleanEmail === 'hoanganhtuan.solnexa@gmail.com') {
-      currentUser = usersDatabase[0];
-      return res.json({ success: true, user: currentUser });
-    }
-
-    const found = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
-    if (found) {
-      currentUser = found;
-      return res.json({ success: true, user: currentUser });
-    }
-
-    if (cleanEmail.includes('admin') || cleanEmail === 'admin@solnexa.co.jp') {
-      currentUser = usersDatabase[0];
-      return res.json({ success: true, user: currentUser });
-    }
+  const cleanEmail = String(email).toLowerCase().trim();
+  const user = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
+  if (!user || !verifyPassword(String(password), user)) {
+    return res.status(401).json({
+      error: '認証エラー',
+      message: 'メールアドレスまたはパスワードが正しくありません。'
+    });
   }
 
-  // fallback to first user (Admin)
-  currentUser = usersDatabase[0];
+  const sessionToken = crypto.randomBytes(32).toString('hex');
+  const safeUser = sanitizeUser(user);
+  const maxAge = 7 * 24 * 60 * 60 * 1000;
+
+  sessionsStore.set(sessionToken, {
+    token: sessionToken,
+    userId: user.id,
+    user: safeUser,
+    createdAt: Date.now(),
+    expiresAt: Date.now() + maxAge
+  });
+
+  res.cookie('solnexa_session', sessionToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    maxAge,
+    signed: true
+  });
+
   res.json({
     success: true,
-    user: currentUser
+    token: sessionToken,
+    user: safeUser
   });
 });
 
-apiRouter.post('/auth/logout', (_req: Request, res: Response) => {
-  currentUser = null;
+apiRouter.post('/auth/logout', (req: Request, res: Response) => {
+  let token: string | undefined;
+  if (req.cookies && req.cookies.solnexa_session) {
+    token = req.cookies.solnexa_session;
+  } else if ((req as any).signedCookies && (req as any).signedCookies.solnexa_session) {
+    token = (req as any).signedCookies.solnexa_session;
+  }
+  if (!token && req.headers.authorization) {
+    const parts = req.headers.authorization.split(' ');
+    if (parts.length === 2 && /^Bearer$/i.test(parts[0])) {
+      token = parts[1];
+    }
+  }
+
+  if (token) {
+    sessionsStore.delete(token);
+  }
+
+  res.clearCookie('solnexa_session');
   res.json({ success: true, message: 'ログアウトしました。' });
 });
 
 apiRouter.get('/auth/me', (req: Request, res: Response) => {
-  res.json({ user: currentUser });
+  const user = (req as any).user || null;
+  res.json({ user });
 });
 
 // --- Dynamic CMS Data Store for Technical Knowledge & News ---
@@ -760,7 +940,7 @@ apiRouter.get('/articles', (_req: Request, res: Response) => {
   res.json(articlesStore);
 });
 
-apiRouter.post('/articles', (req: Request, res: Response) => {
+apiRouter.post('/articles', requireAdmin, (req: Request, res: Response) => {
   try {
     const { category, title, author, readTime, summary, content } = req.body;
     if (!title || !content) {
@@ -771,7 +951,7 @@ apiRouter.post('/articles', (req: Request, res: Response) => {
       category: category || '技術解説',
       title,
       date: new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: 'numeric', day: 'numeric' }),
-      author: author || (currentUser ? currentUser.name : 'ソルネクサ 技術部'),
+      author: author || ((req as any).user ? (req as any).user.name : 'ソルネクサ 技術部'),
       readTime: readTime || '所要時間 約5分',
       summary: summary || content.slice(0, 100) + '...',
       content,
@@ -784,7 +964,7 @@ apiRouter.post('/articles', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/articles/:id', (req: Request, res: Response) => {
+apiRouter.put('/articles/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const { category, title, author, readTime, summary, content } = req.body;
   const idx = articlesStore.findIndex(a => a.id === id);
@@ -804,7 +984,7 @@ apiRouter.put('/articles/:id', (req: Request, res: Response) => {
   res.json({ success: true, article: articlesStore[idx], message: '記事を更新しました。' });
 });
 
-apiRouter.delete('/articles/:id', (req: Request, res: Response) => {
+apiRouter.delete('/articles/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const initialLength = articlesStore.length;
   articlesStore = articlesStore.filter(a => a.id !== id);
@@ -853,7 +1033,7 @@ let newsStore: NewsItem[] = [
     author: '株式会社ソルネクサ 広報室',
     summary: '国内最大級の系統用蓄電所プロジェクトにおいて、消防法告示第2号に適合した液冷LFPコンテナ蓄電池40台および66kV特高スキッド一括納入が決定いたしました。',
     isHot: true,
-    content: `株式会社ソルネクサ（本社：東京都千代田区、以下ソルネクサ）は、東北電力送配電エリアにおいて計画されている特別高圧66kV系統連系の系統用蓄電所（出力40MW / 蓄電容量160MWh）の基本設計、系統連系協議支援、および主要蓄電設備の供給契約を締結いたしましたのでお知らせいたします。
+    content: `株式会社ソルネクサ（本社：東京都荒川区荒川5-6-7 302号、以下ソルネクサ）は、東北電力送配電エリアにおいて計画されている特別高圧66kV系統連系の系統用蓄電所（出力40MW / 蓄電容量160MWh）の基本設計、系統連系協議支援、および主要蓄電設備の供給契約を締結いたしましたのでお知らせいたします。
 
 本プロジェクトの特長:
 ・蓄電容量160MWh（4時間定格放電）により、長期脱炭素電源オークション（容量市場）の落札要件を完全に充足。
@@ -898,7 +1078,7 @@ apiRouter.get('/news', (_req: Request, res: Response) => {
   res.json(newsStore);
 });
 
-apiRouter.post('/news', (req: Request, res: Response) => {
+apiRouter.post('/news', requireAdmin, (req: Request, res: Response) => {
   try {
     const { category, title, summary, content, isHot } = req.body;
     if (!title || !content) {
@@ -909,7 +1089,7 @@ apiRouter.post('/news', (req: Request, res: Response) => {
       date: new Date().toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, '.'),
       category: category || 'お知らせ',
       title,
-      author: currentUser ? currentUser.name : '株式会社ソルネクサ 広報室',
+      author: ((req as any).user ? (req as any).user.name : '株式会社ソルネクサ 広報室'),
       summary: summary || content.slice(0, 100) + '...',
       content,
       isHot: Boolean(isHot)
@@ -921,7 +1101,7 @@ apiRouter.post('/news', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.put('/news/:id', (req: Request, res: Response) => {
+apiRouter.put('/news/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const { category, title, summary, content, isHot } = req.body;
   const idx = newsStore.findIndex(n => n.id === id);
@@ -939,7 +1119,7 @@ apiRouter.put('/news/:id', (req: Request, res: Response) => {
   res.json({ success: true, news: newsStore[idx], message: 'ニュース記事を更新しました。' });
 });
 
-apiRouter.delete('/news/:id', (req: Request, res: Response) => {
+apiRouter.delete('/news/:id', requireAdmin, (req: Request, res: Response) => {
   const { id } = req.params;
   const initialLength = newsStore.length;
   newsStore = newsStore.filter(n => n.id !== id);

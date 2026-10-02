@@ -1,8 +1,16 @@
 @import "tailwindcss";
 
 @layer base {
+  :root {
+    --ease-corporate: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-fast: 200ms;
+    --duration-header: 360ms;
+    --duration-reveal: 600ms;
+    --duration-hero: 800ms;
+    --duration-hero-zoom: 6500ms;
+  }
+
   html {
-    scroll-behavior: smooth;
     overflow-x: hidden;
     max-width: 100%;
     width: 100%;
@@ -26,19 +34,99 @@
   h1, h2, h3, h4, h5, h6 {
     color: #002B49;
     letter-spacing: -0.01em;
+    line-break: strict;
+    word-break: normal;
+    overflow-wrap: normal;
+    text-wrap: balance;
   }
 }
 
-/* Subtle editorial animations */
-.editorial-fade-up {
-  transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1), transform 600ms cubic-bezier(0.16, 1, 0.3, 1);
+/* Japanese strict typographic line-break & semantic chunks */
+.jp-heading {
+  line-break: strict;
+  word-break: normal;
+  overflow-wrap: normal;
+  text-wrap: balance;
 }
 
+.jp-chunk {
+  display: inline-block;
+  white-space: nowrap;
+}
+
+/* ========================================================================= */
+/* JAPANESE CORPORATE MOTION SYSTEM (Solar Frontier Style: Calm, Precise, Luxury) */
+/* ========================================================================= */
+
+/* Hero Text Staggered Entrance Animation (Japanese Corporate Motion Standard) */
+@keyframes heroFadeUp {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-hero-fade-up {
+  animation: heroFadeUp 580ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  will-change: opacity, transform;
+}
+
+/* Subtle Slow Ken-Burns Image Zoom (1.00 -> 1.035 over 6.5s) */
+@keyframes heroKenBurns {
+  0% {
+    transform: scale(1.00);
+  }
+  100% {
+    transform: scale(1.035);
+  }
+}
+
+.animate-hero-kenburns {
+  animation: heroKenBurns 6500ms cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  will-change: transform;
+}
+
+/* Micro-interaction Image Hover (Max 1.02 scale) */
 .editorial-img-hover {
-  transition: transform 700ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: transform;
 }
 .editorial-img-hover:hover {
-  transform: scale(1.025);
+  transform: scale(1.02);
+}
+
+/* Unified Scroll Reveal Classes */
+.scroll-reveal-text {
+  transition: opacity 600ms cubic-bezier(0.22, 1, 0.36, 1), transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.scroll-reveal-img {
+  transition: opacity 650ms cubic-bezier(0.22, 1, 0.36, 1), transform 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+/* Accessibility: prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .animate-hero-kenburns {
+    animation: none !important;
+    transform: none !important;
+  }
+  .editorial-img-hover:hover {
+    transform: none !important;
+  }
 }
 
 /* Minimalist scrollbars */

@@ -2,7 +2,7 @@ import React from 'react';
 
 interface SolnexaLogoProps {
   className?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'corporate-header';
   variant?: 'full' | 'horizontal' | 'mark-only' | 'stacked';
   theme?: 'dark' | 'light' | 'white';
   showSlogan?: boolean;
@@ -19,7 +19,8 @@ export const SolnexaLogo: React.FC<SolnexaLogoProps> = ({
   const dimensions = {
     sm: { iconSize: 28, titleSize: 'text-base', sloganSize: 'text-[9px]', badgeSize: 'text-[9px]' },
     md: { iconSize: 36, titleSize: 'text-xl', sloganSize: 'text-[10px]', badgeSize: 'text-[10px]' },
-    lg: { iconSize: 46, titleSize: 'text-2xl', sloganSize: 'text-xs', badgeSize: 'text-xs' },
+    lg: { iconSize: 48, titleSize: 'text-[25px]', sloganSize: 'text-xs', badgeSize: 'text-xs' },
+    'corporate-header': { iconSize: 48, titleSize: 'text-[26px]', sloganSize: 'text-[10px]', badgeSize: 'text-[10px]' },
     xl: { iconSize: 60, titleSize: 'text-3xl', sloganSize: 'text-sm', badgeSize: 'text-sm' }
   }[size];
 

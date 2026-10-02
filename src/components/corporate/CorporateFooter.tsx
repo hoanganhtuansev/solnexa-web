@@ -4,7 +4,7 @@ import { CorporateTab } from './CorporateHeader';
 import { SolnexaLogo } from './SolnexaLogo';
 
 interface CorporateFooterProps {
-  onNavigateTab: (tab: CorporateTab) => void;
+  onNavigateTab: (tab: CorporateTab, subTab?: string) => void;
   onOpenEngineeringTools: () => void;
   onOpenContact: () => void;
   onOpenCompanyProfile?: () => void;
@@ -138,10 +138,7 @@ export const CorporateFooter: React.FC<CorporateFooterProps> = ({
               <ul className="space-y-2.5 text-xs text-slate-500 font-normal">
                 <li>
                   <button 
-                    onClick={() => {
-                      if (onOpenCompanyProfile) onOpenCompanyProfile();
-                      else onNavigateTab('home');
-                    }} 
+                    onClick={() => onNavigateTab('company', 'overview')} 
                     className="hover:text-[#002B49] transition-colors text-left cursor-pointer"
                   >
                     会社概要・基本データ
@@ -149,10 +146,7 @@ export const CorporateFooter: React.FC<CorporateFooterProps> = ({
                 </li>
                 <li>
                   <button 
-                    onClick={() => {
-                      if (onOpenCompanyProfile) onOpenCompanyProfile();
-                      else onNavigateTab('home');
-                    }} 
+                    onClick={() => onNavigateTab('company', 'message')} 
                     className="hover:text-[#002B49] transition-colors text-left cursor-pointer"
                   >
                     代表メッセージ・理念
