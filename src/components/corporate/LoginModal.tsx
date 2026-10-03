@@ -10,8 +10,13 @@ import {
   Building2,
   Briefcase
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { modalBackdropVariants, modalCardVariants } from '../../utils/motionConfig';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { 
+  modalBackdropVariants, 
+  modalCardVariants,
+  reducedModalBackdropVariants,
+  reducedModalCardVariants 
+} from '../../utils/motionConfig';
 
 export interface LoginUser {
   id: string;
@@ -54,6 +59,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (isOpen) {
@@ -167,7 +173,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div 
-          variants={modalBackdropVariants}
+          variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
@@ -175,7 +181,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           onClick={onClose}
         >
           <motion.div 
-            variants={modalCardVariants}
+            variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
             initial="hidden"
             animate="visible"
             exit="exit"

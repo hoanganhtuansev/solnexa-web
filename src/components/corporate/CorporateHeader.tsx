@@ -28,9 +28,13 @@ import {
   CORPORATE_EASE, 
   megaMenuPanelVariants, 
   megaMenuItemVariants, 
+  reducedMegaMenuPanelVariants,
+  reducedMegaMenuItemVariants,
   staggerContainer,
   modalBackdropVariants,
-  modalCardVariants
+  modalCardVariants,
+  reducedModalBackdropVariants,
+  reducedModalCardVariants
 } from '../../utils/motionConfig';
 
 export type CorporateTab = 
@@ -108,14 +112,15 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
     [0, 1],
     ['0 1px 2px 0 rgba(0, 0, 0, 0.02)', '0 4px 20px -2px rgba(0, 43, 73, 0.06)']
   );
-  const headerPaddingY = useTransform(smoothProgress, [0, 1], [14, 8]);
-  const logoScale = useTransform(smoothProgress, [0, 1], [1, 0.92]);
+  const headerY = useTransform(smoothProgress, [0, 1], [0, -10]);
+  const logoScale = useTransform(smoothProgress, [0, 1], [1, 0.91]);
+  const logoY = useTransform(smoothProgress, [0, 1], [0, 4]);
 
-  // Utility row continuous collapse
-  const utilityOpacity = useTransform(smoothProgress, [0, 0.65], [1, 0]);
-  const utilityY = useTransform(smoothProgress, [0, 1], [0, -14]);
-  const utilityHeight = useTransform(smoothProgress, [0, 1], [26, 0]);
-  const utilityMarginBottom = useTransform(smoothProgress, [0, 1], [8, 0]);
+  // Utility row continuous collapse (GPU translateY + opacity + pointerEvents, zero layout height thrashing)
+  const utilityOpacity = useTransform(smoothProgress, [0, 0.55], [1, 0]);
+  const utilityY = useTransform(smoothProgress, [0, 1], [0, -10]);
+  const utilityPointerEvents = useTransform(smoothProgress, (p) => (p > 0.55 ? 'none' : 'auto'));
+  const navY = useTransform(smoothProgress, [0, 1], [0, 4]);
 
   // Hover delay buffer: 60ms open delay, 220ms close delay, 40ms switch delay
   const handleMouseEnter = (itemId: string) => {
@@ -231,17 +236,12 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
         backgroundColor: headerBg,
         borderColor: headerBorder,
         boxShadow: headerShadow,
+        y: headerY,
       }}
-      className="sticky top-0 z-50 font-sans backdrop-blur-md border-b transition-colors"
+      className="sticky top-0 z-50 font-sans backdrop-blur-md border-b transition-colors will-change-[transform,background-color,border-color,box-shadow]"
     >
-      {/* Container with scroll-linked continuous padding */}
-      <motion.div 
-        style={shouldReduceMotion ? undefined : {
-          paddingTop: headerPaddingY,
-          paddingBottom: headerPaddingY,
-        }}
-        className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between py-3.5"
-      >
+      {/* Container with stable layout and zero scroll-linked padding thrashing */}
+      <div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between py-2.5 sm:py-3">
         
         {/* Brand Logo Zone */}
         <div className="w-[215px] sm:w-[220px] shrink-0 mr-12 xl:mr-16 flex items-center">
@@ -254,7 +254,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             title="SOLNEXA Japan - 太陽光・系統用蓄電池総合エンジニアリング"
           >
             <motion.div 
-              style={shouldReduceMotion ? undefined : { scale: logoScale }}
+              style={shouldReduceMotion ? undefined : { scale: logoScale, y: logoY }}
               className="origin-left flex items-center w-[172px] h-[48px]"
             >
               <SolnexaLogo size="corporate-header" variant="horizontal" showSlogan={false} />
@@ -263,15 +263,17 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
         </div>
 
         {/* Right Clustered Area (Top Utility Row + Main Navigation Line) */}
-        <div className="hidden lg:flex flex-col items-end flex-1 min-w-0">
+        <motion.div 
+          style={shouldReduceMotion ? undefined : { y: navY }}
+          className="hidden lg:flex flex-col items-end flex-1 min-w-0"
+        >
           
-          {/* Top Utility Row (Glides up and collapses smoothly on continuous scroll progress) */}
+          {/* Top Utility Row (Glides up and collapses smoothly on continuous scroll progress with zero layout reflow) */}
           <motion.div 
             style={shouldReduceMotion ? undefined : {
               opacity: utilityOpacity,
               y: utilityY,
-              height: utilityHeight,
-              marginBottom: utilityMarginBottom,
+              pointerEvents: utilityPointerEvents,
             }}
             className="w-full flex items-center justify-end gap-5 xl:gap-6 text-[11px] text-slate-500 font-normal overflow-hidden"
           >
@@ -405,7 +407,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
 
           </div>
 
-        </div>
+        </motion.div>
 
         {/* Mobile Hamburger & Quick CTA */}
         <div className="flex items-center gap-2 lg:hidden">
@@ -424,7 +426,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
           </button>
         </div>
 
-      </motion.div>
+      </div>
 
       {/* ========================================================================= */}
       {/* CHOREOGRAPHED MEGA MENU PANEL (AnimatePresence + Variants Stagger)        */}
@@ -433,7 +435,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
         {activeDropdown && (
           <motion.div
             key="mega-menu-panel"
-            variants={megaMenuPanelVariants}
+            variants={shouldReduceMotion ? reducedMegaMenuPanelVariants : megaMenuPanelVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -445,7 +447,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
               <AnimatePresence mode="wait">
                 <motion.div
                   key={activeDropdown}
-                  variants={staggerContainer(0.045, 0.02)}
+                  variants={shouldReduceMotion ? undefined : staggerContainer(0.045, 0.02)}
                   initial="hidden"
                   animate="visible"
                   exit="exit"
@@ -1066,7 +1068,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <AnimatePresence>
         {isRecruitModalOpen && (
           <motion.div 
-            variants={modalBackdropVariants}
+            variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -1074,7 +1076,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             onClick={() => setIsRecruitModalOpen(false)}
           >
             <motion.div 
-              variants={modalCardVariants}
+              variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
@@ -1129,7 +1131,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <AnimatePresence>
         {isCatalogModalOpen && (
           <motion.div 
-            variants={modalBackdropVariants}
+            variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -1137,7 +1139,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             onClick={() => { setIsCatalogModalOpen(false); setDownloadSuccess(null); }}
           >
             <motion.div 
-              variants={modalCardVariants}
+              variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
               initial="hidden"
               animate="visible"
               exit="exit"
@@ -1242,7 +1244,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       <AnimatePresence>
         {isPartnerModalOpen && (
           <motion.div 
-            variants={modalBackdropVariants}
+            variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
@@ -1250,7 +1252,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             onClick={() => setIsPartnerModalOpen(false)}
           >
             <motion.div 
-              variants={modalCardVariants}
+              variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
               initial="hidden"
               animate="visible"
               exit="exit"

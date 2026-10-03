@@ -121,26 +121,77 @@ export const megaMenuItemVariants: Variants = {
   },
 };
 
-// Hero Slide Text Variants (Enter & Exit pairing)
-export const heroSlideVariants: Variants = {
-  hidden: {
-    opacity: 0,
-  },
+// Reduced Motion Safe Variants
+export const reducedMegaMenuPanelVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.1 } },
+  exit: { opacity: 0, transition: { duration: 0.08 } },
+};
+
+export const reducedMegaMenuItemVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.1 } },
+  exit: { opacity: 0, transition: { duration: 0.05 } },
+};
+
+export const reducedHeroSlideVariants: Variants = {
+  hidden: { opacity: 0 },
   visible: {
     opacity: 1,
     transition: {
-      staggerChildren: 0.08,
-      delayChildren: 0.02,
+      duration: 0.15,
+      staggerChildren: 0.02,
+    },
+  },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
+
+export const reducedHeroChildVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.12 } },
+  exit: { opacity: 0, transition: { duration: 0.08 } },
+};
+
+export const reducedModalBackdropVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.15 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
+
+export const reducedModalCardVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.15 } },
+  exit: { opacity: 0, transition: { duration: 0.1 } },
+};
+
+export const reducedFadeVariants: Variants = {
+  hidden: { opacity: 0 },
+  visible: { opacity: 1, transition: { duration: 0.1 } },
+  exit: { opacity: 0, transition: { duration: 0.08 } },
+};
+
+// Hero Slide Text Variants (Enter & Exit pairing with smooth continuous overlap)
+export const heroSlideVariants: Variants = {
+  hidden: {
+    opacity: 0,
+    y: 16,
+  },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: {
+      duration: 0.52,
+      ease: CORPORATE_EASE,
+      staggerChildren: 0.055,
+      delayChildren: 0.035,
     },
   },
   exit: {
     opacity: 0,
-    y: -10,
+    y: -8,
     transition: {
-      duration: 0.28,
+      duration: 0.22,
       ease: CORPORATE_EASE,
-      staggerChildren: 0.03,
-      staggerDirection: -1,
     },
   },
 };
@@ -148,13 +199,13 @@ export const heroSlideVariants: Variants = {
 export const heroChildVariants: Variants = {
   hidden: {
     opacity: 0,
-    y: 18,
+    y: 14,
   },
   visible: {
     opacity: 1,
     y: 0,
     transition: {
-      duration: 0.58,
+      duration: 0.48,
       ease: CORPORATE_EASE,
     },
   },
@@ -162,7 +213,7 @@ export const heroChildVariants: Variants = {
     opacity: 0,
     y: -8,
     transition: {
-      duration: 0.24,
+      duration: 0.20,
       ease: CORPORATE_EASE,
     },
   },

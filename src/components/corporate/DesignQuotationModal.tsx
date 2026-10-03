@@ -14,6 +14,13 @@ import {
   Download,
   AlertCircle
 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { 
+  modalBackdropVariants, 
+  modalCardVariants,
+  reducedModalBackdropVariants,
+  reducedModalCardVariants 
+} from '../../utils/motionConfig';
 
 interface DesignQuotationModalProps {
   isOpen: boolean;
@@ -55,8 +62,7 @@ export const DesignQuotationModal: React.FC<DesignQuotationModalProps> = ({
   const [isSuccess, setIsSuccess] = useState(false);
   const [quoteId, setQuoteId] = useState('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-
-  if (!isOpen) return null;
+  const shouldReduceMotion = useReducedMotion();
 
   const toggleScope = (key: string) => {
     setScopes(prev => ({ ...prev, [key]: !prev[key] }));
@@ -161,10 +167,25 @@ export const DesignQuotationModal: React.FC<DesignQuotationModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-200 font-sans">
-      <div className="bg-white rounded-xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto">
-        
-        {/* Header Bar */}
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="fixed inset-0 z-50 bg-slate-950/65 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto font-sans"
+          onClick={onClose}
+        >
+          <motion.div 
+            variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="bg-white rounded-xl max-w-3xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden my-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header Bar */}
         <div className="px-6 py-4 bg-[#002B49] text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-2.5">
             <span className="w-2.5 h-2.5 bg-[#d81a28] rounded-xs" />
@@ -545,8 +566,10 @@ export const DesignQuotationModal: React.FC<DesignQuotationModalProps> = ({
 
         </div>
 
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };
 export default DesignQuotationModal;

@@ -17,7 +17,14 @@ import {
   Zap,
   ArrowRight
 } from 'lucide-react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { SolnexaLogo } from './SolnexaLogo';
+import { 
+  modalBackdropVariants, 
+  modalCardVariants,
+  reducedModalBackdropVariants,
+  reducedModalCardVariants 
+} from '../../utils/motionConfig';
 
 interface CompanyProfileModalProps {
   isOpen: boolean;
@@ -33,17 +40,29 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
   onOpenDesignQuotation
 }) => {
   const [activeTab, setActiveTab] = useState<'overview' | 'message' | 'qualifications' | 'access'>('overview');
-
-  if (!isOpen) return null;
+  const shouldReduceMotion = useReducedMotion();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs font-sans animate-in fade-in duration-150">
-      <div 
-        className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Modal Top Header */}
-        <div className="bg-[#002b49] text-white p-5 sm:p-6 flex items-center justify-between border-b border-blue-900 shrink-0">
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/70 backdrop-blur-xs font-sans"
+          onClick={onClose}
+        >
+          <motion.div 
+            variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Top Header */}
+            <div className="bg-[#002b49] text-white p-5 sm:p-6 flex items-center justify-between border-b border-blue-900 shrink-0">
           <div className="flex items-center gap-3.5">
             <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center border border-white/20">
               <Building2 className="w-5 h-5 text-amber-400" />
@@ -426,7 +445,9 @@ export const CompanyProfileModal: React.FC<CompanyProfileModalProps> = ({
           </div>
         </div>
 
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

@@ -15,14 +15,16 @@ import {
   Pause,
   Play
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
 import { APP_IMAGES } from '../solarAssets';
 import { CorporateTab } from './CorporateHeader';
 import { ScrollReveal, ScrollRevealItem } from './ScrollReveal';
 import { 
   CORPORATE_EASE, 
   heroSlideVariants, 
-  heroChildVariants 
+  heroChildVariants,
+  reducedHeroSlideVariants,
+  reducedHeroChildVariants
 } from '../../utils/motionConfig';
 
 interface CorporateHomeViewProps {
@@ -49,6 +51,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isHoveringHero, setIsHoveringHero] = useState(false);
+  const shouldReduceMotion = useReducedMotion();
 
   const heroSlides = [
     {
@@ -138,15 +141,18 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              transition={{ duration: 0.88, ease: CORPORATE_EASE }}
+              transition={{ 
+                duration: shouldReduceMotion ? 0.15 : 0.88, 
+                ease: CORPORATE_EASE 
+              }}
               className="absolute inset-0 z-1"
             >
               <motion.img 
                 src={activeSlideData.image} 
                 alt={activeSlideData.headline} 
                 initial={{ scale: 1.0 }}
-                animate={{ scale: 1.028 }}
-                transition={{ duration: 6.5, ease: "easeOut" }}
+                animate={{ scale: shouldReduceMotion ? 1.0 : 1.028 }}
+                transition={shouldReduceMotion ? { duration: 0.1 } : { duration: 6.5, ease: "easeOut" }}
                 className="w-full h-full object-cover object-center"
               />
             </motion.div>
@@ -157,76 +163,78 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
           <div className="absolute inset-0 z-2 bg-gradient-to-t from-white/60 via-transparent to-transparent pointer-events-none" />
         </div>
 
-        {/* Hero Content with Staggered Entrance and Exit on Slide Change */}
+        {/* Hero Content with Smooth Overlapping Entrance/Exit on Slide Change */}
         <div className="relative z-10 max-w-7xl mx-auto px-6 lg:px-12 py-20 lg:py-24 w-full">
-          <AnimatePresence mode="wait">
-            <motion.div 
-              key={currentSlide} 
-              variants={heroSlideVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="max-w-2xl space-y-7"
-            >
-              {/* 1. Minimal Brand Kicker & Facility Location Badge */}
-              <motion.div variants={heroChildVariants} className="flex flex-wrap items-center gap-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-[#d81a28]" />
-                  <p className="text-xs font-semibold tracking-[0.25em] text-[#002B49] uppercase font-mono">
-                    {activeSlideData.tag}
-                  </p>
-                </div>
-                <span className="text-slate-300 hidden sm:inline">|</span>
-                <span className="text-[11px] font-mono text-slate-500 bg-white/75 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-slate-200/80 shadow-2xs">
-                  {activeSlideData.facility}
-                </span>
-              </motion.div>
-
-              {/* 2. Hero Main Headline */}
-              <motion.h1 
-                variants={heroChildVariants}
-                className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.22] jp-heading"
+          <div className="relative min-h-[380px] sm:min-h-[420px] lg:min-h-[440px] max-w-2xl">
+            <AnimatePresence initial={false} mode="popLayout">
+              <motion.div 
+                key={currentSlide} 
+                variants={shouldReduceMotion ? reducedHeroSlideVariants : heroSlideVariants}
+                initial="hidden"
+                animate="visible"
+                exit="exit"
+                className="space-y-7 w-full"
               >
-                {activeSlideData.headline.split('\n').map((line, idx) => (
-                  <span key={idx} className="block">
-                    <span className="jp-chunk">{line}</span>
+                {/* 1. Minimal Brand Kicker & Facility Location Badge */}
+                <motion.div variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants} className="flex flex-wrap items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-[#d81a28]" />
+                    <p className="text-xs font-semibold tracking-[0.25em] text-[#002B49] uppercase font-mono">
+                      {activeSlideData.tag}
+                    </p>
+                  </div>
+                  <span className="text-slate-300 hidden sm:inline">|</span>
+                  <span className="text-[11px] font-mono text-slate-500 bg-white/75 backdrop-blur-xs px-2.5 py-0.5 rounded-full border border-slate-200/80 shadow-2xs">
+                    {activeSlideData.facility}
                   </span>
-                ))}
-              </motion.h1>
+                </motion.div>
 
-              {/* 3. Subtitle / Engineering Description */}
-              <motion.p 
-                variants={heroChildVariants}
-                className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading"
-              >
-                {activeSlideData.subhead.split('\n').map((line, idx) => (
-                  <span key={idx} className="block">
-                    <span className="jp-chunk">{line}</span>
-                  </span>
-                ))}
-              </motion.p>
-
-              {/* 4. Dual Call To Action */}
-              <motion.div variants={heroChildVariants} className="pt-2 flex flex-wrap items-center gap-4">
-                <button
-                  onClick={() => handleScrollTo('business')}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#002B49] hover:bg-[#001D33] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-xs cursor-pointer group"
+                {/* 2. Hero Main Headline */}
+                <motion.h1 
+                  variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
+                  className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.22] jp-heading"
                 >
-                  <span>私たちについてを見る</span>
-                  <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                </button>
+                  {activeSlideData.headline.split('\n').map((line, idx) => (
+                    <span key={idx} className="block">
+                      <span className="jp-chunk">{line}</span>
+                    </span>
+                  ))}
+                </motion.h1>
 
-                <button
-                  onClick={onOpenEngineeringTools}
-                  className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/90 hover:bg-white active:scale-98 text-[#002B49] border border-slate-300 hover:border-slate-400 text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-2xs cursor-pointer group"
+                {/* 3. Subtitle / Engineering Description */}
+                <motion.p 
+                  variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
+                  className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading"
                 >
-                  <span>TOOLSを使う</span>
-                  <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-[#002B49] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                </button>
+                  {activeSlideData.subhead.split('\n').map((line, idx) => (
+                    <span key={idx} className="block">
+                      <span className="jp-chunk">{line}</span>
+                    </span>
+                  ))}
+                </motion.p>
+
+                {/* 4. Dual Call To Action */}
+                <motion.div variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants} className="pt-2 flex flex-wrap items-center gap-4">
+                  <button
+                    onClick={() => handleScrollTo('business')}
+                    className="inline-flex items-center gap-2 px-7 py-3.5 bg-[#002B49] hover:bg-[#001D33] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-xs cursor-pointer group"
+                  >
+                    <span>私たちについてを見る</span>
+                    <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+                  </button>
+
+                  <button
+                    onClick={onOpenEngineeringTools}
+                    className="inline-flex items-center gap-2 px-7 py-3.5 bg-white/90 hover:bg-white active:scale-98 text-[#002B49] border border-slate-300 hover:border-slate-400 text-xs sm:text-[13px] font-medium tracking-wider rounded-md transition-colors shadow-2xs cursor-pointer group"
+                  >
+                    <span>TOOLSを使う</span>
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-[#002B49] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                  </button>
+                </motion.div>
+
               </motion.div>
-
-            </motion.div>
-          </AnimatePresence>
+            </AnimatePresence>
+          </div>
         </div>
 
         {/* Carousel Bottom Controller (Dots, Progress & Pause/Play) */}

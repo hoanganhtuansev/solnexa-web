@@ -1,7 +1,12 @@
 import React, { useState } from 'react';
 import { Mail, Phone, Building2, Send, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { modalBackdropVariants, modalCardVariants } from '../../utils/motionConfig';
+import { motion, AnimatePresence, useReducedMotion } from 'motion/react';
+import { 
+  modalBackdropVariants, 
+  modalCardVariants,
+  reducedModalBackdropVariants,
+  reducedModalCardVariants 
+} from '../../utils/motionConfig';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -28,6 +33,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitResult, setSubmitResult] = useState<any | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const shouldReduceMotion = useReducedMotion();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -68,7 +74,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
     <AnimatePresence>
       {isOpen && (
         <motion.div 
-          variants={modalBackdropVariants}
+          variants={shouldReduceMotion ? reducedModalBackdropVariants : modalBackdropVariants}
           initial="hidden"
           animate="visible"
           exit="exit"
@@ -76,7 +82,7 @@ export const ContactModal: React.FC<ContactModalProps> = ({
           onClick={onClose}
         >
           <motion.div 
-            variants={modalCardVariants}
+            variants={shouldReduceMotion ? reducedModalCardVariants : modalCardVariants}
             initial="hidden"
             animate="visible"
             exit="exit"
