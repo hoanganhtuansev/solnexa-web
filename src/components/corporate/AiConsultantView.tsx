@@ -25,6 +25,7 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: string;
+  model?: string;
   source?: string;
 }
 
@@ -33,6 +34,7 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
   onOpenContact,
   onOpenEngineeringTools
 }) => {
+  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite' | 'gemini-3.1-pro-preview'>('gemini-3.8-flash');
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 'welcome-1',
@@ -49,6 +51,7 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
 
 下部の質問入力欄またはプリセットの質問ボタンよりお気軽にご質問ください。`,
       timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+      model: 'gemini-3.8-flash',
       source: 'solnexa-knowledge-engine'
     }
   ]);
@@ -95,11 +98,22 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
     setInput('');
     setIsLoading(true);
 
+    const historyPayload = messages
+      .filter(m => m.id !== 'welcome-1')
+      .map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
     try {
-      const res = await fetch('/api/ai/consultation', {
+      const res = await fetch('/api/ai/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: query.trim() })
+        body: JSON.stringify({ 
+          message: query.trim(),
+          history: historyPayload,
+          model: selectedModel
+        })
       });
 
       if (!res.ok) {
@@ -112,6 +126,7 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
         role: 'assistant',
         content: data.answer || '申し訳ございません。回答を生成できませんでした。',
         timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+        model: data.model || selectedModel,
         source: data.source || 'gemini-3.8-flash'
       };
 
@@ -122,7 +137,8 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
         id: `assistant-err-${Date.now()}`,
         role: 'assistant',
         content: '通信エラーが発生いたしました。株式会社ソルネクサの技術顧問へ直接お問い合わせいただくか、再度ご質問をお試しください。',
-        timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
+        timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
+        model: selectedModel
       };
       setMessages(prev => [...prev, fallbackMsg]);
     } finally {
@@ -159,21 +175,58 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
       {/* Main Chat Container */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-xs flex flex-col h-[700px] overflow-hidden">
         {/* Chat Control Header */}
-        <div className="bg-slate-50 border-b border-slate-200 px-6 py-3.5 flex items-center justify-between">
+        <div className="bg-slate-50 border-b border-slate-200 px-6 py-3.5 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <div className="w-8 h-8 rounded-full bg-[#003366] text-white flex items-center justify-center font-bold text-xs">
               AI
             </div>
             <div>
               <p className="text-xs font-bold text-slate-900">SOLNEXA AI チーフ技術顧問</p>
-              <p className="text-[10px] text-slate-500">Gemini 3.8 Flash ＆ ソルネクサ知見データベース連動</p>
+              <p className="text-[10px] text-slate-500">Google Gemini &amp; ソルネクサ技術知見データベース連動</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
+            {/* Model Selector */}
+            <div className="flex items-center gap-1 bg-white p-1 rounded-lg border border-slate-200 text-[11px] font-mono">
+              <button
+                onClick={() => setSelectedModel('gemini-3.8-flash')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  selectedModel === 'gemini-3.8-flash'
+                    ? 'bg-[#002B49] text-white font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="標準・高精度（推奨）"
+              >
+                3.8 Flash
+              </button>
+              <button
+                onClick={() => setSelectedModel('gemini-3.1-flash-lite')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  selectedModel === 'gemini-3.1-flash-lite'
+                    ? 'bg-[#002B49] text-white font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="超高速レスポンス"
+              >
+                3.1 Lite
+              </button>
+              <button
+                onClick={() => setSelectedModel('gemini-3.1-pro-preview')}
+                className={`px-2 py-0.5 rounded transition-colors cursor-pointer ${
+                  selectedModel === 'gemini-3.1-pro-preview'
+                    ? 'bg-[#002B49] text-white font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+                title="高度計算・推論"
+              >
+                3.1 Pro
+              </button>
+            </div>
+
             <button
               onClick={handleResetChat}
-              className="text-xs text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-100 flex items-center gap-1 transition-colors"
+              className="text-xs text-slate-600 hover:text-slate-900 px-2.5 py-1 rounded border border-slate-200 hover:bg-slate-100 flex items-center gap-1 transition-colors cursor-pointer"
               title="チャットを初期化"
             >
               <RotateCcw className="w-3 h-3" />
@@ -181,7 +234,7 @@ export const AiConsultantView: React.FC<AiConsultantViewProps> = ({
             </button>
             <button
               onClick={onOpenContact}
-              className="text-xs font-bold text-[#003366] hover:underline px-2"
+              className="text-xs font-bold text-[#003366] hover:underline px-2 cursor-pointer"
             >
               専門家に直接相談
             </button>

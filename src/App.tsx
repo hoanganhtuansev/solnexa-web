@@ -33,6 +33,7 @@ import { CompanyView, CompanySubTab } from './components/corporate/CompanyView';
 import { LoginModal } from './components/corporate/LoginModal';
 import { ContactModal } from './components/corporate/ContactModal';
 import { CompanyProfileModal } from './components/corporate/CompanyProfileModal';
+import { ChatBotWidget } from './components/corporate/ChatBotWidget';
 
 export default function App() {
   // Top-level mode: 'corporate' (Portal website) vs 'engineering' (Comprehensive Design Workspace)
@@ -449,6 +450,20 @@ export default function App() {
             handleOpenDesignQuotation();
           }}
         />
+
+        {/* Floating Multi-Turn Gemini AI Technical Chatbot */}
+        <ChatBotWidget
+          onOpenContact={() => {
+            setContactDefaultType('technical_consulting');
+            setIsContactModalOpen(true);
+          }}
+          onOpenEngineeringTools={() => {
+            setPortalMode('engineering');
+            setActiveTab('dashboard');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          onOpenDesignQuotation={handleOpenDesignQuotation}
+        />
       </div>
     );
   }
@@ -645,6 +660,19 @@ export default function App() {
           setIsCompanyProfileOpen(false);
           handleOpenDesignQuotation();
         }}
+      />
+
+      {/* Floating Multi-Turn Gemini AI Technical Chatbot */}
+      <ChatBotWidget
+        onOpenContact={() => {
+          setContactDefaultType('technical_consulting');
+          setIsContactModalOpen(true);
+        }}
+        onOpenEngineeringTools={() => {
+          setActiveTab('dashboard');
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onOpenDesignQuotation={handleOpenDesignQuotation}
       />
     </div>
   );

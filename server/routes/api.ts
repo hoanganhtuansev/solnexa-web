@@ -1130,33 +1130,39 @@ apiRouter.delete('/news/:id', requireAdmin, (req: Request, res: Response) => {
 });
 
 
-// AI Solar & BESS Technical Advisor
-apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
-  const { message, history } = req.body;
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: '質問内容を入力してください。' });
-  }
+// AI Solar & BESS Technical Advisor & Multi-Turn Chatbot
+const SOLNEXA_AI_SYSTEM_INSTRUCTION = `あなたは日本を代表する太陽光発電および系統用蓄電池（Grid-scale BESS）の総合エンジニアリング企業「株式会社ソルネクサ（SOLNEXA Japan）」の専属AIチーフ技術顧問（シニアエネルギーエンジニア）です。
 
-  const systemInstruction = `あなたは日本を代表する太陽光発電および系統用蓄電池（BESS）のエンジニアリング・コンサルティング企業「株式会社ソルネクサ（SOLNEXA Japan）」のチーフ技術顧問（AIシニアエンジニア）です。
+【役割とペルソナ】
+- 丁寧、冷静、正確で信頼性の高い日本のビジネス技術日本語（専門用語を的確に使用）で対話します。
+- 過去の対話履歴（会話コンテキスト）を正確に記憶・参照し、連続した技術相談に対応します。
+- 太陽光・系統用蓄電池の設計実務、法令基準、電力市場運用、機器選定を的確に支援します。
 
-【あなたの専門知識】
+【専門知識領域】
 1. 系統用蓄電池（Grid-scale BESS）:
-   - 日本の電力市場（JEPX卸電力取引所、需給調整市場 一次〜三次、容量市場・長期脱炭素電源オークション）
-   - 一般送配電事業者（東電PG、関電送配電、九電送配電等）との系統連系協議、ノンファーム型接続、コネクト＆マネージ
-   - 消防法（リチウムイオン蓄電池基準、総務省消防庁告示第2号、屋外設置の保有空地3m以上離隔、自動消火設備）
-   - 電気事業法第48条に基づく工事計画届出、電気主任技術者（第1種〜第3種）選任、保安規程
-2. 産業用太陽光発電（メガソーラー・自家消費）:
-   - FITからFIP制度への移行、インバランスリスクヘッジ、蓄電池併設最適化
-   - 屋根置・地上設置の設計基準（JIS C 8955架台耐風圧計算、DC/AC過積載比率140〜180%）
-   - 高圧（6.6kV）および特別高圧（22kV/66kV）受変電設備、単線結線図（SLD）、電圧降下・交流損失対策
-3. ソルネクサの製品と技術:
-   - 単結晶N型TOPConモジュール、高圧集中型PCS（1250kW〜3125kW）、20ft液冷蓄電コンテナ（3.72MWh LFP）、AIスマートEMS
+   - 消防法（総務省消防庁告示第2号・屋外設置の保有空地3m以上離隔基準、FK-5-1-12等自動消火設備、少量危険物届出）
+   - 電気事業法第48条に基づく工事計画届出、電気主任技術者（第1種〜第3種）選任、保安規程制定
+   - 日本卸電力取引所（JEPX）アービトラージ、FIPインバランスヘッジ、需給調整市場（一次〜三次）、容量市場（長期脱炭素電源オークション）
+2. 産業用太陽光発電（メガソーラー・高圧/特高）:
+   - モジュールストリング設計（冬季Voc安全余裕度計算、PCS最大許容直流入力電圧1,500V制限）
+   - 架台耐風圧構造計算（JIS C 8955:2017設計基準、地表面粗度区分、積雪荷重）
+   - 幹線ケーブル選定（JIS C 3605規格、許容電流、多条敷設低減係数、往復電圧降下率2.0%以内抑制）
+   - 高圧（6.6kV）および特別高圧（22kV/66kV）受変電設備、単線結線図（SLD）、保護協調（87T比率差動, 51過電流, 64OV地絡過電圧）
+3. ソルネクサの製品とツール:
+   - 単結晶N型TOPConモジュール、高圧集中型PCS（1,250kW〜3,125kW）、20ft液冷蓄電コンテナ（3.72MWh LFP）、AIスマートEMS
+   - 画面上部「設計ツール（SOLNEXA TOOLS）」でJIS計算・単線結線図作成が今すぐ利用可能
 
 【回答のルール】
-- 丁寧で信頼性の高い日本のビジネス日本語（敬語・専門用語）で回答してください。
-- 結論から先に述べ、必要に応じて要点を箇条書きで分かりやすく整理してください。
+- 結論から先に述べ、必要に応じて要点を箇条書きで論理的に整理してください。
 - 関連する法令基準（消防法、電気事業法、JIS規格、電力会社系統連系技術要件）を具体的に引用してください。
-- 最後に「株式会社ソルネクサでは詳細な系統解析や単線結線図設計、シミュレーションのご相談を承っております」等の案内を添えてください。`;
+- ユーザーの対話履歴を文脈として踏まえ、追加の質問や計算条件に対しても自然に深掘りしてください。
+- 必要に応じて「SOLNEXA TOOLS」の活用や専門エンジニアへの設計見積・特注相談（無料）を案内してください。`;
+
+async function executeGeminiMultiTurnChat(message: string, history?: any[], requestedModel?: string) {
+  let targetModel = 'gemini-3.8-flash';
+  if (requestedModel === 'gemini-3.1-pro-preview' || requestedModel === 'gemini-3.1-flash-lite') {
+    targetModel = requestedModel;
+  }
 
   // Try real Gemini API first if configured
   if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '') {
@@ -1171,26 +1177,43 @@ apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
         }
       });
 
+      // Construct multi-turn contents array
+      const contents: any[] = [];
+      if (Array.isArray(history) && history.length > 0) {
+        for (const item of history) {
+          if (!item.content || typeof item.content !== 'string') continue;
+          const role = (item.role === 'assistant' || item.role === 'model') ? 'model' : 'user';
+          contents.push({
+            role,
+            parts: [{ text: item.content }]
+          });
+        }
+      }
+      contents.push({
+        role: 'user',
+        parts: [{ text: message }]
+      });
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3.8-flash',
-        contents: message,
+        model: targetModel,
+        contents,
         config: {
-          systemInstruction,
+          systemInstruction: SOLNEXA_AI_SYSTEM_INSTRUCTION,
           temperature: 0.4
         }
       });
 
       const answer = response.text;
       if (answer && answer.trim()) {
-        return res.json({
+        return {
           success: true,
-          answer,
-          model: 'gemini-3.8-flash',
+          answer: answer.trim(),
+          model: targetModel,
           source: 'gemini-live'
-        });
+        };
       }
     } catch (apiErr: any) {
-      console.warn('[AI Consultation] Gemini API call error, using domain knowledge base fallback:', apiErr.message);
+      console.warn('[AI Multi-Turn Chat] Gemini API call error, using domain knowledge base fallback:', apiErr.message);
     }
   }
 
@@ -1201,27 +1224,26 @@ apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
   if (q.includes('消防') || q.includes('保有空地') || q.includes('離隔') || q.includes('消火')) {
     answer = `【系統用蓄電池（BESS）の消防法規制および保有空地基準について】
 
-系統用蓄電システムの導入においては、総務省消防庁告示および各自治体の火災予防条例に基づく厳格な安全基準が適用されます。
+系統用蓄電システムの導入においては、総務省消防庁告示第2号および各自治体の火災予防条例に基づく厳格な安全基準が適用されます。
 
 1. 保有空地の確保（離隔距離）:
-   - 屋外型コンテナ蓄電池（リチウムイオン電池）は、原則として外壁または敷地境界から【3m以上】の保有空地（離隔）を確保する必要があります。
-   - 隣接する建築物が耐火構造である場合や、特定基準の延焼防止防火壁を設けることで一部緩和（1m〜1.5m等）が適用される場合がありますが、所轄消防署との事前協議が必須です。
+   - 屋外型コンテナ蓄電池（リチウムイオン電池）は、原則として外壁または敷地境界から【3m以上】の保有空地（離隔）を全周に確保する必要があります。
+   - 隣接する建築物が耐火構造である場合や、特定基準の延焼防止耐火壁を設けることで一部緩和（1m〜1.5m等）が適用される自治体もありますが、所轄消防本部との事前協議が必須です。
 
 2. 指定数量と危険物該当性:
-   - セル単体容量や電解液の性質により危険物第4類（引火性液体）に準じた扱いを受けるケースがあり、合計蓄電容量が基準（通常4,800Ah・セル単位合算）を超える場合は【少量危険物】または【一般取扱所】の届出・許可申請が必要です。
+   - 電解液の可燃性状により危険物第4類（引火性液体）に準じた扱いを受けるケースがあり、合計蓄電容量が基準（通常4,800Ah・セル単位合算）を超える場合は【少量危険物届出】または【一般取扱所】の許可申請が必要です。
 
 3. 自動消火設備・ガス系消火設備:
    - 蓄電池コンテナ内部には、熱感知器・煙感知器・可燃性ガス検知器を連動させた全域放出方式の消火設備（Novec 1230 / FK-5-1-12 またはエアロゾル消火システム）の搭載が標準要件となります。
-   - 消防法第17条に基づく消防用設備等の検査・適合確認が竣工時に行われます。
 
 株式会社ソルネクサでは、消防法完全準拠の液冷蓄電コンテナ（IP55/C5防錆・自動消火連動済）の選定および所轄消防署協議サポートを行っております。`;
-  } else if (q.includes('fip') || q.includes('インバランス') || q.includes('市場') || q.includes('jepx') || q.includes('需給調整')) {
+  } else if (q.includes('fip') || q.includes('インバランス') || q.includes('市場') || q.includes('jepx') || q.includes('需給調整') || q.includes('アービトラージ')) {
     answer = `【FIP制度における太陽光・系統用蓄電池の運用と収益最大化モデル】
 
-2022年度より開始されたFIP（Feed-in Premium）制度下において、蓄電システム（BESS）の併設はインバランスリスクの回避およびマルチマーケット収益化の鍵となります。
+2022年度より本格導入されたFIP（Feed-in Premium）制度下において、蓄電システム（BESS）の併設はインバランスリスクの回避およびマルチマーケット収益化の鍵となります。
 
 1. FIPインバランス回避と計画値同時同量の達成:
-   - 太陽光の発電予測誤差により発生するインバランスペナルティを、蓄電池の高速充放電（ミリ秒〜秒単位レスポンス）で吸収し、計画値との乖離を最小化します。
+   - 太陽光の発電予測誤差により発生するインバランスペナルティを、蓄電池のミリ秒応答充放電で即座に吸収し、計画値との乖離をゼロ化します。
 
 2. マルチマーケット（多重市場）取引による収益モデル:
    - ① JEPX（日本卸電力取引所）アービトラージ: 昼間の余剰電力・市場安値時間帯に充電し、夕方・夜間のピーク価格時間帯に放電して鞘取りを実施。
@@ -1232,7 +1254,7 @@ apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
    - 気象予測、JEPX市場価格予測、出力制御指令をAIアルゴリズムで統合処理し、充放電スケジュールを自動最適化するEMSが不可欠です。
 
 株式会社ソルネクサでは、市場連動アルゴリズムを搭載した産業用・系統用EMSおよび20年間のキャッシュフロー精緻シミュレーションを提供しております。`;
-  } else if (q.includes('連系') || q.includes('特高') || q.includes('高圧') || q.includes('送配電') || q.includes('受変電')) {
+  } else if (q.includes('連系') || q.includes('特高') || q.includes('高圧') || q.includes('送配電') || q.includes('受変電') || q.includes('sld')) {
     answer = `【系統連系（特別高圧・高圧）の技術要件と設計ポイント】
 
 一般送配電事業者（東京電力PG、関西電力、九州電力等）との系統連系協議における主要な技術課題とソルネクサの対応指針です。
@@ -1243,13 +1265,13 @@ apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
    - 特別高圧連系: 2,000kW以上（22kV / 66kV / 154kV、特高変電所、GIS/特高遮断器設置）
 
 2. ノンファーム型接続（コネクト＆マネージ）の対応:
-   - 空き容量のない基幹系統への接続において、系統混雑時に出力を遠隔制御するノンファーム契約が主流となっています。出力制御時の損失を蓄電コンテナに充電退避させる設計が経済性を劇的に改善します。
+   - 空き容量のない基幹系統への接続において、系統混雑時に出力を遠隔制御するノンファーム契約が主流です。出力制御時の損失を蓄電コンテナに充電退避させる設計が経済性を劇的に改善します。
 
 3. 保護協調と単線結線図（SLD）設計:
    - 比率差動継電器（87T）、過電流継電器（51/51V）、地絡過電圧継電器（64OV）、逆電力継電器（67R）、不足電圧継電器（27）の整定値計算および一般送配電事業者リレーとの協調が最重要です。
 
-株式会社ソルネクサの「統合エンジニアリングツール」では、系統連系基準に準拠した単線結線図（SLD）の作図および電圧降下・保護継電器協調の自動算定が可能です。`;
-  } else if (q.includes('設計') || q.includes('プロセス') || q.includes('流れ') || q.includes('過積載') || q.includes('jis')) {
+画面上部「設計ツール」にて、系統連系基準に準拠した単線結線図（SLD）の作図および電圧降下・保護継電器協調の自動算定が可能です。`;
+  } else if (q.includes('設計') || q.includes('プロセス') || q.includes('流れ') || q.includes('過積載') || q.includes('jis') || q.includes('ケーブル')) {
     answer = `【太陽光発電および蓄電所の基本設計〜実施設計プロセス】
 
 高品質なEPCプロジェクトを遂行するための標準設計フロー（ソルネクサ推奨標準）をご案内します。
@@ -1263,44 +1285,71 @@ apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
    - DC/AC過積載比率の最適化（最新トレンドは130%〜160%）
    - モジュールストリング設計: 冬季最低気温（-10℃〜-20℃）時の開放電圧VocがPCS最大入力電圧（1500V等）を超えない直列数の選定
    - 架台強度計算: JIS C 8955:2017に準拠した基準風速・積雪荷重・地表面粗度区分に基づく応力解析
+   - 幹線ケーブル選定: JIS C 3605規格に基づく許容電流および往復電圧降下率2.0%以下抑制
 
 3. 電気設計および許認可届出:
    - 単線結線図（SLD）、配置図、ストリングマップ作成
-   - 幹線ケーブル選定（JIS C 3605架橋ポリエチレンケーブルの許容電流・許容電圧降下2%以内）
    - 電気事業法第48条（工事計画届出）、保安規程制定、消防法・農地法・森林法（林地開発許可）申請
-
-4. 試運転・連系試験（PAC/FAC）:
-   - 耐電圧試験、絶縁抵抗測定、受変電シーケンス試験、PCS系統連系保護試験、遠隔監視通信確認。
 
 ソルネクサのウェブプラットフォーム上にて、これらの計算および仕様書解析を即座にシミュレーションいただけます。`;
   } else {
-    answer = `【株式会社ソルネクサ 技術相談室からの回答】
+    answer = `【株式会社ソルネクサ AI技術相談室からの回答】
 
-ご質問いただき誠にありがとうございます。
-
-お問い合わせの件につきまして、ソルネクサの技術知見に基づき以下のようにご案内申し上げます。
+ご質問いただき誠にありがとうございます。対話履歴を踏まえて以下の通り回答いたします。
 
 1. 太陽光発電（PV）と系統用蓄電池（BESS）の統合アプローチ:
-   - 日本国内のカーボンニュートラル達成および電力逼迫・再エネ出力制御への対応として、蓄電所単体設置（スタンドアローンBESS）およびPV併設型FIPモデルが急速に拡大しています。
-   - 経済産業省（METI）の最新補助金（系統用蓄電池導入支援事業）や容量市場・需給調整市場の制度設計に合わせた事業計画策定が極めて有効です。
+   - 日本国内のカーボンニュートラル達成および電力需給逼迫・再エネ出力制御への対応として、蓄電所単体設置（スタンドアローンBESS）およびPV併設型FIPモデルが急速に拡大しています。
+   - 経済産業省（METI）の補助金や容量市場・需給調整市場の制度設計に合わせた事業計画策定が極めて有効です。
 
 2. 技術基準・法令適合の重要性:
    - 電気事業法第48条（工事計画届出）および保安規程の認可手続き。
    - 総務省消防庁告示に基づく屋外蓄電コンテナの離隔距離（保有空地3m以上確保）および自動消火設備要件。
-   - JIS規格（JIS C 8955、JIS C 4620キュービクル基準）および電力会社（東電PG等）の系統連系技術要件の遵守。
+   - JIS規格（JIS C 8955、JIS C 3605、JIS C 4620キュービクル基準）および電力会社系統連系技術要件の遵守。
 
 3. ソルネクサの提供価値:
    - 高効率N型TOPConモジュール、高圧大容量PCS、液冷式LFP蓄電コンテナ（20ft/40ft）、AIスマートEMSのワンストップ供給。
-   - 画面上部「エンジニアリングツール」にて、単線結線図（SLD）作成、ケーブル電圧降下計算、BESS充放電サイジングが今すぐご利用可能です。
+   - 画面上部「設計ツール」にて、単線結線図（SLD）作成、ケーブル電圧降下計算、BESS充放電サイジングが今すぐご利用可能です。
 
 さらに詳細な個別案件の系統連系検討、図面作成、お見積もりにつきましては、上部の「お問い合わせ」よりいつでもお気軽にお申し付けください。専門技術者が迅速に対応いたします。`;
   }
 
-  res.json({
+  return {
     success: true,
     answer,
-    model: 'solnexa-knowledge-engine',
-    source: 'domain-knowledge-base'
-  });
+    model: targetModel,
+    source: 'solnexa-knowledge-engine'
+  };
+}
+
+// 1. Dedicated Multi-Turn AI Chatbot endpoint
+apiRouter.post('/ai/chat', async (req: Request, res: Response) => {
+  try {
+    const { message, history, model } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: 'メッセージ内容を入力してください。' });
+    }
+
+    const result = await executeGeminiMultiTurnChat(message, history, model);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Chat endpoint error:', err);
+    res.status(500).json({ error: 'AIチャットボットの処理中にエラーが発生しました。' });
+  }
+});
+
+// 2. Consultation endpoint (backward-compatible)
+apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
+  try {
+    const { message, history, model } = req.body;
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ error: '質問内容を入力してください。' });
+    }
+
+    const result = await executeGeminiMultiTurnChat(message, history, model);
+    res.json(result);
+  } catch (err: any) {
+    console.error('Consultation endpoint error:', err);
+    res.status(500).json({ error: 'AI技術相談の処理中にエラーが発生しました。' });
+  }
 });
 
