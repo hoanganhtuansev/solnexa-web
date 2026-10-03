@@ -10,6 +10,8 @@ import {
   Building2,
   Briefcase
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { modalBackdropVariants, modalCardVariants } from '../../utils/motionConfig';
 
 export interface LoginUser {
   id: string;
@@ -61,8 +63,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
   }, [isOpen, defaultMode]);
 
-  if (!isOpen) return null;
-
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
@@ -86,9 +86,17 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || data.error || 'ログインに失敗しました。');
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok || !data || !data.success) {
+        if (!data) {
+          throw new Error('サーバーが起動中または応答していません。数秒後に再度お試しください。');
+        }
+        throw new Error(data.message || data.error || 'メールアドレスまたはパスワードが正しくありません。');
       }
 
       onLoginSuccess(data.user);
@@ -132,8 +140,16 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         })
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.success) {
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok || !data || !data.success) {
+        if (!data) {
+          throw new Error('サーバーが起動中または応答していません。数秒後に再度お試しください。');
+        }
         throw new Error(data.message || data.error || '登録処理に失敗しました。');
       }
 
@@ -148,22 +164,32 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs font-sans animate-in fade-in duration-300"
-      onClick={onClose}
-    >
-      <div 
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 sm:p-8 animate-in fade-in zoom-in-98 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {/* Close Button */}
-        <button
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          variants={modalBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs font-sans"
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
-          aria-label="閉じる"
         >
-          <X className="w-5 h-5" />
-        </button>
+          <motion.div 
+            variants={modalCardVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-6 sm:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Close Button */}
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-lg hover:bg-slate-100 transition-colors cursor-pointer"
+              aria-label="閉じる"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
         {/* Header */}
         <div className="text-center space-y-2 pb-4 border-b border-slate-100">
@@ -362,7 +388,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
           </form>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

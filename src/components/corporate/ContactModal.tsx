@@ -1,5 +1,7 @@
 import React, { useState } from 'react';
 import { Mail, Phone, Building2, Send, CheckCircle2, AlertCircle, X, Loader2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
+import { modalBackdropVariants, modalCardVariants } from '../../utils/motionConfig';
 
 interface ContactModalProps {
   isOpen: boolean;
@@ -27,8 +29,6 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   const [submitResult, setSubmitResult] = useState<any | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  if (!isOpen) return null;
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.name || !formData.email || !formData.message) {
@@ -46,9 +46,14 @@ export const ContactModal: React.FC<ContactModalProps> = ({
         body: JSON.stringify(formData)
       });
 
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || '送信に失敗しました');
+      const contentType = res.headers.get('content-type') || '';
+      let data: any = null;
+      if (contentType.includes('application/json')) {
+        data = await res.json();
+      }
+
+      if (!res.ok || !data) {
+        throw new Error(data?.error || data?.message || 'サーバーが一時的に応答していません。数秒後に再度お試しください。');
       }
 
       setSubmitResult(data);
@@ -60,20 +65,30 @@ export const ContactModal: React.FC<ContactModalProps> = ({
   };
 
   return (
-    <div 
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-300"
-      onClick={onClose}
-    >
-      <div 
-        className="bg-white rounded-xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl relative animate-in fade-in zoom-in-98 duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <button
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div 
+          variants={modalBackdropVariants}
+          initial="hidden"
+          animate="visible"
+          exit="exit"
+          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans"
           onClick={onClose}
-          className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-700"
         >
-          <X className="w-5 h-5" />
-        </button>
+          <motion.div 
+            variants={modalCardVariants}
+            initial="hidden"
+            animate="visible"
+            exit="exit"
+            className="bg-white rounded-xl max-w-xl w-full max-h-[90vh] overflow-y-auto p-6 sm:p-8 shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              onClick={onClose}
+              className="absolute top-4 right-4 p-1 text-slate-400 hover:text-slate-700 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
 
         {submitResult ? (
           <div className="py-8 text-center space-y-4">
@@ -281,7 +296,9 @@ export const ContactModal: React.FC<ContactModalProps> = ({
             </form>
           </div>
         )}
-      </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 };

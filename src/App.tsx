@@ -409,10 +409,7 @@ export default function App() {
 
         {/* Corporate Global Footer */}
         <CorporateFooter
-          onNavigateTab={(tab) => {
-            setCorporateTab(tab);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-          }}
+          onNavigateTab={handleNavigateCorporate}
           onOpenEngineeringTools={() => {
             setPortalMode('engineering');
             setActiveTab('dashboard');
