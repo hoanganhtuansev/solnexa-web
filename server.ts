@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes/api';
+import { authDb } from './server/db/authDatabase';
 
 dotenv.config();
 
@@ -16,6 +17,9 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = '0.0.0.0';
 
 async function startServer() {
+  // Initialize persistent SQLite authentication & session engine
+  await authDb.init();
+
   const app = express();
 
   // Security Headers Middleware

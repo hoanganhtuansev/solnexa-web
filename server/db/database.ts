@@ -474,7 +474,9 @@ class RelationalDatabase {
         cables: Array.from(this.cables.values()),
         priceBook: Array.from(this.priceBook.values())
       };
-      fs.writeFileSync(DB_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+      const tempFile = `${DB_FILE}.tmp.${Date.now()}`;
+      fs.writeFileSync(tempFile, JSON.stringify(payload, null, 2), 'utf-8');
+      fs.renameSync(tempFile, DB_FILE);
     } catch (err) {
       console.error('Failed to save SOLNEXA database to disk:', err);
     }
@@ -1680,30 +1682,21 @@ class RelationalDatabase {
       updatedAt: '2026-03-20T11:20:00.000Z'
     };
 
-    // Clean any old projects and set only the 2 requested sample projects
-    this.projects.clear();
-    this.projects.set(chiba.id, chiba);
-    this.projects.set(tokyoBess.id, tokyoBess);
+    // Seed sample projects if not already existing, without clearing user-created projects
+    if (!this.projects.has(chiba.id)) {
+      this.projects.set(chiba.id, chiba);
+    }
+    if (!this.projects.has(tokyoBess.id)) {
+      this.projects.set(tokyoBess.id, tokyoBess);
+    }
   }
 
   public enforceUserRequestedCleanState() {
-    // 1. Remove all projects that are NOT the 2 sample projects
-    for (const [id] of this.projects.entries()) {
-      if (id !== 'proj-chiba-solar' && id !== 'proj-tokyo-bess') {
-        this.projects.delete(id);
-      }
-    }
-
-    // 2. Ensure both sample projects are populated with exact specs
+    // Ensure standard baseline sample projects exist, but strictly preserve all user-created projects
     if (!this.projects.has('proj-chiba-solar') || !this.projects.has('proj-tokyo-bess')) {
       this.seedInitialProjects();
-    } else {
-      // Force update to match requested 500kW Solar and 2MW/8MWh BESS
-      this.seedInitialProjects();
+      this.saveToDisk();
     }
-
-    // 3. Save to disk so that persistence is updated
-    this.saveToDisk();
   }
 
   private seedInitialCables() {

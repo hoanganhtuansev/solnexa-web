@@ -31,18 +31,37 @@ export interface ChatMessage {
 }
 
 interface ChatBotWidgetProps {
+  isOpen?: boolean;
+  onOpen?: () => void;
+  onClose?: () => void;
   onOpenContact?: () => void;
   onOpenEngineeringTools?: () => void;
   onOpenDesignQuotation?: () => void;
 }
 
 export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
+  isOpen: propIsOpen,
+  onOpen,
+  onClose,
   onOpenContact,
   onOpenEngineeringTools,
   onOpenDesignQuotation
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
-  const [selectedModel, setSelectedModel] = useState<'gemini-3.8-flash' | 'gemini-3.1-flash-lite' | 'gemini-3.1-pro-preview'>('gemini-3.8-flash');
+  const [internalIsOpen, setInternalIsOpen] = useState(false);
+  const isOpen = typeof propIsOpen === 'boolean' ? propIsOpen : internalIsOpen;
+
+  const handleOpen = () => {
+    if (onOpen) onOpen();
+    setInternalIsOpen(true);
+  };
+
+  const handleClose = () => {
+    if (onClose) onClose();
+    setInternalIsOpen(false);
+  };
+
+  const [selectedModel, setSelectedModel] = useState<'gemini-2.5-flash' | 'gemini-2.5-pro' | 'gemini-3.8-flash'>('gemini-2.5-flash');
+  const [activeLang, setActiveLang] = useState<'JP' | 'VI' | 'EN'>('JP');
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -57,28 +76,59 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
     content: `株式会社ソルネクサ（SOLNEXA Japan）AI技術相談室へようこそ。
 私は太陽光発電（PV）および系統用蓄電池（Grid-scale BESS）を専門とする専属AIチーフ技術顧問です。
 
-【主な相談対応領域】
-・系統用蓄電池の消防法適合（保有空地3m規制、自動消火設備、少量危険物）
-・電気事業法第48条 工事計画届出および保安規程
-・FIPインバランスペナルティ対策、JEPXアービトラージ、需給調整市場
-・特別高圧（66kV/22kV）受変電設備、単線結線図（SLD）、保護協調（87T, 51）
-・JIS C 8955架台耐風圧計算、JIS C 3605ケーブル許容電流・電圧降下
+【主な相談対応領域 / Hỗ trợ chuyên môn】
+・系統用蓄電池の消防法適合（保有空地3m規制、自動消火設備）/ An toàn PCCC khoảng cách 3m
+・電気事業法第48条 工事計画届出および保安規程 / Hồ sơ Điều 48 Nhật Bản
+・FIPインバランスペナルティ対策、JEPXアービトラージ / Thị trường FIP & JEPX
+・特別高圧（66kV/22kV）受変電設備、単線結線図（SLD）/ Trạm biến áp & SLD
+・JIS C 8955架台耐風圧計算、JIS C 3605ケーブル許容電流・電圧降下 / Cáp & sụt áp
 
-何でもお気軽にご相談ください。`,
+日本語・Tiếng Việt・English にてお気軽にご相談ください。`,
     timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' }),
-    model: 'gemini-3.8-flash',
+    model: 'gemini-2.5-flash',
     source: 'solnexa-knowledge-engine'
   };
 
-  const [messages, setMessages] = useState<ChatMessage[]>([initialGreeting]);
+  const [messages, setMessages] = useState<ChatMessage[]>(() => {
+    try {
+      const saved = localStorage.getItem('solnexa_chatbot_history_v2');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [initialGreeting];
+  });
 
-  const presetQuestions = [
-    '系統用蓄電池の消防法上の保有空地3m基準と緩和条件は？',
-    'FIP制度で蓄電池を併設した場合のJEPXアービトラージ収益性',
-    '特別高圧（66kV）受変電設備の単線結線図と保護協調ポイント',
-    'JIS C 3605ケーブル許容電流と電圧降下2%以内の設計手法',
-    '電気事業法第48条工事計画届出の必要書類と期間'
-  ];
+  useEffect(() => {
+    try {
+      localStorage.setItem('solnexa_chatbot_history_v2', JSON.stringify(messages));
+    } catch {}
+  }, [messages]);
+
+  const presetQuestionsMap: Record<'JP' | 'VI' | 'EN', string[]> = {
+    JP: [
+      '系統用蓄電池の消防法上の保有空地3m基準と緩和条件は？',
+      'FIP制度で蓄電池を併設した場合のJEPXアービトラージ収益性',
+      '特別高圧（66kV）受変電設備の単線結線図と保護協調ポイント',
+      'JIS C 3605ケーブル許容電流と電圧降下2%以内の設計手法',
+      '電気事業法第48条工事計画届出の必要書類と期間'
+    ],
+    VI: [
+      'Khoảng cách an toàn PCCC 3m cho Container BESS tại Nhật?',
+      'Mô hình sạc ban ngày xả ban đêm theo giá JEPX & FIP?',
+      'Tính toán sụt áp tuyến cáp dưới 2% theo tiêu chuẩn JIS C 3605?',
+      'Quy chuẩn trạm biến áp 66kV và sơ đồ đơn tuyến SLD?',
+      'Hồ sơ đăng ký kế hoạch thi công Điều 48 Luật Điện lực Nhật?'
+    ],
+    EN: [
+      'What are the 3m fire setback regulations for BESS containers in Japan?',
+      'How does BESS capture JEPX arbitrage & FIP revenue stacking?',
+      'Key considerations for 66kV extra-high-voltage SLD & protection relay?',
+      'JIS C 3605 cable ampacity & voltage drop calculation guidelines',
+      'Electricity Business Act Article 48 filing process and requirements'
+    ]
+  };
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -141,8 +191,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (err: any) {
-      console.error('Chat error:', err);
+    } catch {
       const errorMessage: ChatMessage = {
         id: `err-${Date.now()}`,
         role: 'assistant',
@@ -164,13 +213,17 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
   };
 
   const handleResetChat = () => {
-    setMessages([
+    const fresh = [
       {
         ...initialGreeting,
         id: `welcome-${Date.now()}`,
         timestamp: new Date().toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' })
       }
-    ]);
+    ];
+    setMessages(fresh);
+    try {
+      localStorage.removeItem('solnexa_chatbot_history_v2');
+    } catch {}
   };
 
   const handleCopy = (text: string, id: string) => {
@@ -196,7 +249,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
             >
               {/* Tooltip callout badge on desktop */}
               <div 
-                onClick={() => setIsOpen(true)}
+                onClick={handleOpen}
                 className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-white/95 backdrop-blur-md rounded-full shadow-lg border border-slate-200 text-xs font-semibold text-[#002B49] cursor-pointer hover:bg-white hover:shadow-xl transition-all"
               >
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -205,7 +258,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
 
               {/* Main Circular Launcher */}
               <button
-                onClick={() => setIsOpen(true)}
+                onClick={handleOpen}
                 className="group relative flex items-center justify-center w-14 h-14 bg-[#002B49] hover:bg-[#001D33] active:scale-95 text-white rounded-full shadow-xl hover:shadow-2xl transition-all duration-200 cursor-pointer border border-blue-900/60"
                 title="SOLNEXA AI技術顧問チャットボットを開く"
                 aria-label="AIチャットボット"
@@ -265,7 +318,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
                   <RotateCcw className="w-4 h-4" />
                 </button>
                 <button
-                  onClick={() => setIsOpen(false)}
+                  onClick={handleClose}
                   title="チャットを閉じる"
                   className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
                   aria-label="閉じる"
@@ -275,43 +328,49 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
               </div>
             </div>
 
-            {/* --- Model Selector Bar --- */}
-            <div className="bg-slate-50 border-b border-slate-200 px-4 py-2 flex items-center justify-between gap-2 text-[11px] shrink-0">
-              <span className="text-slate-500 font-medium shrink-0">モデル選択:</span>
+            {/* --- Model & Language Selector Bar --- */}
+            <div className="bg-slate-50 border-b border-slate-200 px-3.5 py-2 flex items-center justify-between gap-2 text-[11px] shrink-0">
               <div className="flex items-center gap-1">
+                <span className="text-slate-500 font-medium text-[10px] mr-1">AI:</span>
                 <button
-                  onClick={() => setSelectedModel('gemini-3.8-flash')}
-                  className={`px-2 py-0.8 rounded font-mono transition-colors cursor-pointer ${
-                    selectedModel === 'gemini-3.8-flash'
+                  onClick={() => setSelectedModel('gemini-2.5-flash')}
+                  className={`px-2 py-0.5 rounded font-mono transition-colors cursor-pointer ${
+                    selectedModel === 'gemini-2.5-flash'
                       ? 'bg-[#002B49] text-white font-bold shadow-2xs'
                       : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                   }`}
-                  title="標準・高精度（推奨）"
+                  title="Gemini 2.5 Flash: Nhanh & Chính xác (Khuyên dùng)"
                 >
-                  3.8 Flash
+                  2.5 Flash
                 </button>
                 <button
-                  onClick={() => setSelectedModel('gemini-3.1-flash-lite')}
-                  className={`px-2 py-0.8 rounded font-mono transition-colors cursor-pointer ${
-                    selectedModel === 'gemini-3.1-flash-lite'
+                  onClick={() => setSelectedModel('gemini-2.5-pro')}
+                  className={`px-2 py-0.5 rounded font-mono transition-colors cursor-pointer ${
+                    selectedModel === 'gemini-2.5-pro'
                       ? 'bg-[#002B49] text-white font-bold shadow-2xs'
                       : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
                   }`}
-                  title="超高速レスポンス"
+                  title="Gemini 2.5 Pro: Phân tích kỹ thuật chuyên sâu"
                 >
-                  3.1 Lite
+                  2.5 Pro
                 </button>
-                <button
-                  onClick={() => setSelectedModel('gemini-3.1-pro-preview')}
-                  className={`px-2 py-0.8 rounded font-mono transition-colors cursor-pointer ${
-                    selectedModel === 'gemini-3.1-pro-preview'
-                      ? 'bg-[#002B49] text-white font-bold shadow-2xs'
-                      : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200'
-                  }`}
-                  title="高度解析・計算"
-                >
-                  3.1 Pro
-                </button>
+              </div>
+
+              {/* Language Switcher for Presets */}
+              <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-md p-0.5">
+                {(['JP', 'VI', 'EN'] as const).map(lang => (
+                  <button
+                    key={lang}
+                    onClick={() => setActiveLang(lang)}
+                    className={`px-1.5 py-0.2 text-[10px] font-bold rounded ${
+                      activeLang === lang
+                        ? 'bg-[#002B49] text-white'
+                        : 'text-slate-600 hover:text-[#002B49]'
+                    }`}
+                  >
+                    {lang}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -387,11 +446,11 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
                 <div className="flex items-center gap-1.5 pb-1">
                   <span className="text-[10px] text-slate-400 font-semibold whitespace-nowrap flex items-center gap-1">
                     <HelpCircle className="w-3 h-3" />
-                    頻出の相談テーマ:
+                    {activeLang === 'VI' ? 'Chủ đề tư vấn nổi bật:' : activeLang === 'EN' ? 'Suggested Topics:' : '頻出の相談テーマ:'}
                   </span>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1 no-scrollbar">
-                  {presetQuestions.map((q, idx) => (
+                  {(presetQuestionsMap[activeLang] || presetQuestionsMap.JP).map((q: string, idx: number) => (
                     <button
                       key={idx}
                       onClick={() => handleSendMessage(q)}
@@ -410,7 +469,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
                 {onOpenDesignQuotation && (
                   <button
                     onClick={() => {
-                      setIsOpen(false);
+                      handleClose();
                       onOpenDesignQuotation();
                     }}
                     className="text-[#d81a28] font-bold hover:underline flex items-center gap-1 cursor-pointer"
@@ -422,7 +481,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
                 {onOpenEngineeringTools && (
                   <button
                     onClick={() => {
-                      setIsOpen(false);
+                      handleClose();
                       onOpenEngineeringTools();
                     }}
                     className="text-[#002B49] font-semibold hover:underline flex items-center gap-1 cursor-pointer"
@@ -436,7 +495,7 @@ export const ChatBotWidget: React.FC<ChatBotWidgetProps> = ({
               {onOpenContact && (
                 <button
                   onClick={() => {
-                    setIsOpen(false);
+                    handleClose();
                     onOpenContact();
                   }}
                   className="text-slate-500 hover:text-slate-800 underline cursor-pointer"

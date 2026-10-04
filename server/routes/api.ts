@@ -18,115 +18,106 @@ import { EquipmentCategoryCode, AIProviderId } from '../../src/types';
 
 export const apiRouter = Router();
 
-// --- Section: User & Session Storage (Zero global currentUser, HttpOnly cookies, secure verification) ---
-export interface PortalUser {
-  id: string;
-  name: string;
-  company: string;
-  role: string;
-  email: string;
-  tier: string;
-  isAdmin: boolean;
-  avatar?: string;
-  createdAt?: string;
-}
+// --- Section: User & Session Storage (Persistent SQLite Database with Bcrypt) ---
+import { authDb, PortalUser, PortalUserRecord, UserSession } from '../db/authDatabase';
 
-export interface PortalUserRecord extends PortalUser {
-  passwordHash: string;
-  salt: string;
-  altPasswordHash?: string;
-}
+export type { PortalUser, PortalUserRecord, UserSession };
 
-export interface UserSession {
-  token: string;
-  userId: string;
-  user: PortalUser;
-  createdAt: number;
-  expiresAt: number;
-}
-
-// Password hashing with salt
-export function hashPassword(password: string, salt: string): string {
-  return crypto.createHash('sha256').update(password + salt).digest('hex');
+// Delegate password hashing & verification to Bcrypt engine
+export function hashPassword(password: string): string {
+  return authDb.hashPassword(password);
 }
 
 export function verifyPassword(password: string, user: PortalUserRecord): boolean {
-  const hash = hashPassword(password, user.salt);
-  try {
-    if (crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.passwordHash, 'hex'))) {
-      return true;
-    }
-  } catch {}
-  if (user.altPasswordHash) {
-    try {
-      if (crypto.timingSafeEqual(Buffer.from(hash, 'hex'), Buffer.from(user.altPasswordHash, 'hex'))) {
-        return true;
-      }
-    } catch {}
-  }
-  return false;
+  return authDb.verifyPassword(password, user);
 }
 
-// Persistent User Store with hashed credentials
-const ADMIN_SALT = 'solnexa-admin-salt-999';
-const USER_SALT = 'solnexa-user-salt-333';
-
-export const usersDatabase: PortalUserRecord[] = [
-  {
-    id: 'user-admin',
-    name: 'Hoàng Anh Tuấn (CTO / サイト全権管理者)',
-    company: '株式会社ソルネクサ (SOLNEXA Japan)',
-    role: '代表 / 最高技術責任者・サイト全権管理者',
-    email: 'hoanganhtuan.solnexa@gmail.com',
-    tier: 'Super Administrator',
-    isAdmin: true,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    salt: ADMIN_SALT,
-    passwordHash: hashPassword('SolnexaAdmin#2026', ADMIN_SALT),
-    altPasswordHash: hashPassword('Hoangtuan26', ADMIN_SALT),
-    createdAt: '2026-01-01T00:00:00.000Z'
-  },
-  {
-    id: 'user-admin-personal',
-    name: 'Hoàng Anh Tuấn (CTO / サイト全権管理者)',
-    company: '株式会社ソルネクサ (SOLNEXA Japan)',
-    role: '代表 / 最高技術責任者・サイト全権管理者',
-    email: 'hoanganhtuan558@gmail.com',
-    tier: 'Super Administrator',
-    isAdmin: true,
-    avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    salt: ADMIN_SALT,
-    passwordHash: hashPassword('SolnexaAdmin#2026', ADMIN_SALT),
-    altPasswordHash: hashPassword('Hoangtuan26', ADMIN_SALT),
-    createdAt: '2026-01-01T00:00:00.000Z'
-  },
-  {
-    id: 'user-01',
-    name: '佐藤 雅彦 (主任技術者)',
-    company: '日本グリーンエナジーキャピタル合同会社',
-    role: '発電事業技術担当エンジニア',
-    email: 'engineer@solnexa.co.jp',
-    tier: 'Certified Engineer Partner',
-    isAdmin: false,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-    salt: USER_SALT,
-    passwordHash: hashPassword('Partner#2026!', USER_SALT),
-    createdAt: '2026-01-01T00:00:00.000Z'
-  }
-];
-
-// Per-User In-Memory Session Store
-export const sessionsStore = new Map<string, UserSession>();
-
-// Cleanup expired sessions periodically
-setInterval(() => {
-  const now = Date.now();
-  for (const [token, session] of sessionsStore.entries()) {
-    if (session.expiresAt < now) {
-      sessionsStore.delete(token);
+// --- In-Memory Sliding Window Rate Limiting ---
+interface RateLimitRecord {
+  count: number;
+  resetTime: number;
+}
+function createRateLimiter(options: { windowMs: number; max: number; message: string }) {
+  const store = new Map<string, RateLimitRecord>();
+  return (req: Request, res: Response, next: NextFunction) => {
+    const ip = req.ip || req.socket.remoteAddress || '127.0.0.1';
+    const now = Date.now();
+    let record = store.get(ip);
+    if (!record || record.resetTime <= now) {
+      record = { count: 1, resetTime: now + options.windowMs };
+      store.set(ip, record);
+      return next();
     }
+    record.count++;
+    if (record.count > options.max) {
+      const waitSeconds = Math.ceil((record.resetTime - now) / 1000);
+      return res.status(429).json({
+        error: 'Too Many Requests',
+        message: `${options.message} (Vui lòng đợi ${waitSeconds}s)`,
+        retryAfter: waitSeconds
+      });
+    }
+    next();
+  };
+}
+
+export const authLimiter = createRateLimiter({
+  windowMs: 15 * 60 * 1000,
+  max: 25,
+  message: 'Bạn đã thực hiện quá nhiều thao tác xác thực trong thời gian ngắn.'
+});
+
+export const aiChatLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: 'Bạn đã gửi tin nhắn AI quá nhanh.'
+});
+
+export const uploadLimiter = createRateLimiter({
+  windowMs: 10 * 60 * 1000,
+  max: 20,
+  message: 'Bạn đã tải lên quá nhiều tệp trong thời gian ngắn.'
+});
+
+export const inquiryLimiter = createRateLimiter({
+  windowMs: 60 * 60 * 1000,
+  max: 15,
+  message: 'Bạn đã gửi quá nhiều yêu cầu tư vấn.'
+});
+
+// SSRF Safety Validator for Local AI Endpoints
+export function isValidLocalAiEndpoint(rawUrl: string): { valid: boolean; error?: string } {
+  try {
+    const parsed = new URL(rawUrl);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return { valid: false, error: 'Chỉ chấp nhận giao thức http hoặc https.' };
+    }
+    const hostname = parsed.hostname.toLowerCase();
+    // Block cloud metadata & AWS/GCP/Azure link-local addresses
+    if (
+      hostname === '169.254.169.254' ||
+      hostname === 'metadata.google.internal' ||
+      hostname.endsWith('.internal') ||
+      hostname === '0.0.0.0'
+    ) {
+      return { valid: false, error: 'Endpoint bị chặn vì lý do an toàn mạng (SSRF Protection).' };
+    }
+    // Block internal RFC1918 private subnets unless localhost
+    const isLocalhost = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+    if (!isLocalhost) {
+      if (
+        /^10\./.test(hostname) ||
+        /^192\.168\./.test(hostname) ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(hostname)
+      ) {
+        return { valid: false, error: 'Không được phép kết nối tới mạng nội bộ riêng tư (Private Subnet).' };
+      }
+    }
+    return { valid: true };
+  } catch {
+    return { valid: false, error: 'URL không đúng định dạng.' };
   }
-}, 5 * 60 * 1000);
+}
 
 // Authentication Middleware: extract session from HttpOnly Cookie or Bearer header
 export const authenticateSession = (req: Request, _res: Response, next: NextFunction) => {
@@ -148,7 +139,7 @@ export const authenticateSession = (req: Request, _res: Response, next: NextFunc
   }
 
   if (token) {
-    const session = sessionsStore.get(token);
+    const session = authDb.getSession(token);
     if (session && session.expiresAt > Date.now()) {
       (req as any).user = session.user;
       (req as any).sessionToken = token;
@@ -244,7 +235,7 @@ apiRouter.get('/projects/:id', (req: Request, res: Response) => {
   res.json(project);
 });
 
-apiRouter.post('/projects', (req: Request, res: Response) => {
+apiRouter.post('/projects', requireAuth, (req: Request, res: Response) => {
   try {
     const saved = db.upsertProject(req.body);
     res.json(saved);
@@ -253,7 +244,7 @@ apiRouter.post('/projects', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.delete('/projects/:id', (req: Request, res: Response) => {
+apiRouter.delete('/projects/:id', requireAuth, (req: Request, res: Response) => {
   const ok = db.deleteProject(req.params.id);
   res.json({ success: ok });
 });
@@ -277,7 +268,7 @@ apiRouter.get('/categories', (req: Request, res: Response) => {
 });
 
 // --- Datasheet PDF Upload & Ingestion ---
-apiRouter.post(['/datasheets/upload', '/datasheets/upload/'], handleUpload, async (req: Request, res: Response) => {
+apiRouter.post(['/datasheets/upload', '/datasheets/upload/'], requireAuth, uploadLimiter, handleUpload, async (req: Request, res: Response) => {
   try {
     if (!req.file) {
       return res.status(400).json({
@@ -445,7 +436,7 @@ apiRouter.get('/review/:modelId', (req: Request, res: Response) => {
   res.json(details);
 });
 
-apiRouter.put('/specifications/:id', (req: Request, res: Response) => {
+apiRouter.put('/specifications/:id', requireAuth, (req: Request, res: Response) => {
   const updated = reviewService.updateSpecification(req.params.id, req.body);
   if (!updated) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -453,7 +444,7 @@ apiRouter.put('/specifications/:id', (req: Request, res: Response) => {
   res.json(updated);
 });
 
-apiRouter.post('/specifications/:id/approve', (req: Request, res: Response) => {
+apiRouter.post('/specifications/:id/approve', requireAuth, (req: Request, res: Response) => {
   const approved = reviewService.approveSpecification(req.params.id);
   if (!approved) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -461,7 +452,7 @@ apiRouter.post('/specifications/:id/approve', (req: Request, res: Response) => {
   res.json(approved);
 });
 
-apiRouter.post('/specifications/:id/reject', (req: Request, res: Response) => {
+apiRouter.post('/specifications/:id/reject', requireAuth, (req: Request, res: Response) => {
   const rejected = reviewService.rejectSpecification(req.params.id);
   if (!rejected) {
     return res.status(404).json({ error: 'Specification not found' });
@@ -469,7 +460,7 @@ apiRouter.post('/specifications/:id/reject', (req: Request, res: Response) => {
   res.json(rejected);
 });
 
-apiRouter.post('/models/:modelId/specifications', (req: Request, res: Response) => {
+apiRouter.post('/models/:modelId/specifications', requireAuth, (req: Request, res: Response) => {
   try {
     const spec = reviewService.addMissingSpecification(req.params.modelId, req.body);
     res.json(spec);
@@ -478,7 +469,7 @@ apiRouter.post('/models/:modelId/specifications', (req: Request, res: Response) 
   }
 });
 
-apiRouter.post('/models/:modelId/commit', (req: Request, res: Response) => {
+apiRouter.post('/models/:modelId/commit', requireAuth, (req: Request, res: Response) => {
   try {
     const committed = reviewService.approveAllAndCommit(req.params.modelId, req.body);
     res.json(committed);
@@ -531,7 +522,7 @@ apiRouter.get('/settings', (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/settings', (req: Request, res: Response) => {
+apiRouter.post('/settings', requireAdmin, (req: Request, res: Response) => {
   try {
     const updated = aiProviderManager.updateSettings(req.body);
     res.json({
@@ -544,9 +535,19 @@ apiRouter.post('/settings', (req: Request, res: Response) => {
   }
 });
 
-apiRouter.post('/settings/test-local', async (req: Request, res: Response) => {
+// SSRF-Protected Local Endpoint Verification (Admin Only)
+apiRouter.post('/settings/test-local', requireAdmin, async (req: Request, res: Response) => {
   try {
     const { endpoint } = req.body;
+    if (endpoint) {
+      const validation = isValidLocalAiEndpoint(endpoint);
+      if (!validation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: validation.error || 'Endpoint không hợp lệ hoặc bị từ chối do chính sách bảo mật SSRF.'
+        });
+      }
+    }
     const result = await aiProviderManager.testLocalConnection(endpoint);
     res.json(result);
   } catch (err: any) {
@@ -566,7 +567,7 @@ apiRouter.get('/settings/providers', (req: Request, res: Response) => {
   });
 });
 
-apiRouter.post('/settings/provider', (req: Request, res: Response) => {
+apiRouter.post('/settings/provider', requireAdmin, (req: Request, res: Response) => {
   const { provider } = req.body;
   const updated = aiProviderManager.updateSettings({ activeProvider: provider });
   res.json({ success: true, active: updated.activeProvider });
@@ -626,7 +627,7 @@ apiRouter.get('/v1/equipment/:modelQuery/specifications', (req: Request, res: Re
 // Memory store for corporate inquiries
 const corporateInquiries: any[] = [];
 
-apiRouter.post('/inquiries', (req: Request, res: Response) => {
+apiRouter.post('/inquiries', inquiryLimiter, (req: Request, res: Response) => {
   try {
     const { type, company, department, name, email, phone, message, interest } = req.body;
     if (!name || !email || !message) {
@@ -729,7 +730,7 @@ function sanitizeUser(u: PortalUserRecord | PortalUser): PortalUser {
   };
 }
 
-apiRouter.post('/auth/register', (req: Request, res: Response) => {
+apiRouter.post('/auth/register', authLimiter, (req: Request, res: Response) => {
   try {
     const { name, email, company, role, password } = req.body;
     if (!name || !email || !password) {
@@ -738,41 +739,25 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
     if (String(password).length < 6) {
       return res.status(400).json({ error: 'パスワードは6文字以上で入力してください。' });
     }
-    const cleanEmail = email.toLowerCase().trim();
-    const existing = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
+    const cleanEmail = String(email).toLowerCase().trim();
+    const existing = authDb.findUserByEmail(cleanEmail);
     if (existing) {
       return res.status(400).json({ error: 'このメールアドレスは既に登録されています。ログインしてください。' });
     }
 
-    const salt = crypto.randomBytes(16).toString('hex');
-    const newUserRecord: PortalUserRecord = {
-      id: `usr-${Date.now().toString(36)}`,
+    const newUserRecord = authDb.createUser({
       name: String(name).trim(),
       email: cleanEmail,
       company: company ? String(company).trim() : '一般会員',
       role: role ? String(role).trim() : 'エンジニア',
-      tier: 'Standard Member',
-      isAdmin: false,
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      salt,
-      passwordHash: hashPassword(String(password), salt),
-      createdAt: new Date().toISOString()
-    };
-    usersDatabase.push(newUserRecord);
-
-    const safeUser = sanitizeUser(newUserRecord);
-    const sessionToken = crypto.randomBytes(32).toString('hex');
-    const maxAge = 7 * 24 * 60 * 60 * 1000;
-
-    sessionsStore.set(sessionToken, {
-      token: sessionToken,
-      userId: safeUser.id,
-      user: safeUser,
-      createdAt: Date.now(),
-      expiresAt: Date.now() + maxAge
+      password: String(password)
     });
 
-    res.cookie('solnexa_session', sessionToken, {
+    const safeUser = sanitizeUser(newUserRecord);
+    const maxAge = 7 * 24 * 60 * 60 * 1000;
+    const session = authDb.createSession(safeUser, maxAge);
+
+    res.cookie('solnexa_session', session.token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
@@ -782,43 +767,35 @@ apiRouter.post('/auth/register', (req: Request, res: Response) => {
 
     res.json({
       success: true,
-      token: sessionToken,
+      authenticated: true,
       user: safeUser,
       message: 'アカウントが正常に登録されました。すべての専門機能をご利用いただけます。'
     });
   } catch (err: any) {
-    res.status(500).json({ error: '登録処理中にエラーが発生しました。' });
+    res.status(500).json({ error: err.message || '登録処理中にエラーが発生しました。' });
   }
 });
 
-apiRouter.post('/auth/login', (req: Request, res: Response) => {
+apiRouter.post('/auth/login', authLimiter, (req: Request, res: Response) => {
   const { email, password } = req.body;
   if (!email || !password) {
     return res.status(400).json({ error: 'メールアドレスとパスワードを入力してください。' });
   }
 
   const cleanEmail = String(email).toLowerCase().trim();
-  const user = usersDatabase.find(u => u.email.toLowerCase() === cleanEmail);
-  if (!user || !verifyPassword(String(password), user)) {
+  const user = authDb.findUserByEmail(cleanEmail);
+  if (!user || !authDb.verifyPassword(String(password), user)) {
     return res.status(401).json({
       error: '認証エラー',
       message: 'メールアドレスまたはパスワードが正しくありません。'
     });
   }
 
-  const sessionToken = crypto.randomBytes(32).toString('hex');
   const safeUser = sanitizeUser(user);
   const maxAge = 7 * 24 * 60 * 60 * 1000;
+  const session = authDb.createSession(safeUser, maxAge);
 
-  sessionsStore.set(sessionToken, {
-    token: sessionToken,
-    userId: user.id,
-    user: safeUser,
-    createdAt: Date.now(),
-    expiresAt: Date.now() + maxAge
-  });
-
-  res.cookie('solnexa_session', sessionToken, {
+  res.cookie('solnexa_session', session.token, {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -828,7 +805,7 @@ apiRouter.post('/auth/login', (req: Request, res: Response) => {
 
   res.json({
     success: true,
-    token: sessionToken,
+    authenticated: true,
     user: safeUser
   });
 });
@@ -848,7 +825,7 @@ apiRouter.post('/auth/logout', (req: Request, res: Response) => {
   }
 
   if (token) {
-    sessionsStore.delete(token);
+    authDb.deleteSession(token);
   }
 
   res.clearCookie('solnexa_session');
@@ -1159,8 +1136,8 @@ const SOLNEXA_AI_SYSTEM_INSTRUCTION = `あなたは日本を代表する太陽�
 - 必要に応じて「SOLNEXA TOOLS」の活用や専門エンジニアへの設計見積・特注相談（無料）を案内してください。`;
 
 async function executeGeminiMultiTurnChat(message: string, history?: any[], requestedModel?: string) {
-  let targetModel = 'gemini-3.8-flash';
-  if (requestedModel === 'gemini-3.1-pro-preview' || requestedModel === 'gemini-3.1-flash-lite') {
+  let targetModel = 'gemini-2.5-flash';
+  if (requestedModel === 'gemini-2.5-pro' || requestedModel === 'gemini-3.8-flash' || requestedModel === 'gemini-3.1-pro-preview') {
     targetModel = requestedModel;
   }
 
@@ -1198,7 +1175,8 @@ async function executeGeminiMultiTurnChat(message: string, history?: any[], requ
         model: targetModel,
         contents,
         config: {
-          systemInstruction: SOLNEXA_AI_SYSTEM_INSTRUCTION,
+          systemInstruction: `${SOLNEXA_AI_SYSTEM_INSTRUCTION}
+【言語対応】ユーザーが日本語、ベトナム語、英語のいずれで質問しても、その言語（日本語には自然で丁寧なビジネス技術日本語、ベトナム語には正確な専門エンジニアリングベトナム語）で正確かつ親切に回答してください。`,
           temperature: 0.4
         }
       });
@@ -1217,11 +1195,88 @@ async function executeGeminiMultiTurnChat(message: string, history?: any[], requ
     }
   }
 
-  // Robust domain-expert fallback response engine
+  // Robust domain-expert fallback response engine supporting JA & VI & EN
   const q = message.toLowerCase();
   let answer = '';
 
-  if (q.includes('消防') || q.includes('保有空地') || q.includes('離隔') || q.includes('消火')) {
+  const isVietnamese = /[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]/i.test(message) ||
+    q.includes('pin') || q.includes('lưu trữ') || q.includes('sụt áp') || q.includes('phòng cháy') || q.includes('đấu nối') || q.includes('chào') || q.includes('chat boot');
+
+  if (isVietnamese) {
+    if (q.includes('bess') || q.includes('lưu trữ') || q.includes('pin')) {
+      answer = `【Tư vấn Kỹ thuật Hệ thống Pin Lưu trữ BESS (Grid-Scale Storage) - SOLNEXA】
+
+1. Tiêu chuẩn PCCC và Khoảng cách an toàn (保有空地 3m):
+   - Theo Thông tư số 2 của Cơ quan Cứu hỏa Nhật Bản, cụm container BESS ngoài trời phải duy trì khoảng cách an toàn tối thiểu 3m từ tường container đến ranh giới khu đất hoặc công trình kế cận.
+   - Có thể rút ngắn xuống 1m - 1.5m khi bổ sung vách ngăn chống cháy chịu nhiệt đặc thù sau khi thống nhất với cơ quan PCCC sở tại.
+
+2. Cấu hình Kỹ thuật Container BESS của SOLNEXA:
+   - Module LFP (Lithium Iron Phosphate) mật độ năng lượng cao, hệ thống làm mát bằng chất lỏng (Liquid Cooling) ổn định nhiệt độ chênh lệch <2.5°C giữa các cell.
+   - Hệ thống chữa cháy khí sạch tự động FK-5-1-12 liên động cảm biến khói, nhiệt và khí Hydro sớm.
+   - Đạt chuẩn kiểm định an toàn UL9540A và chống ăn mòn ven biển cấp C5.
+
+3. Vận hành Thị trường & Doanh thu:
+   - Tối ưu hóa chênh lệch giá JEPX (mua sạc giờ điện mặt trời giá rẻ, xả bán giờ cao điểm tối).
+   - Tham gia thị trường công suất (Long-term Decarbonization Auction) với hợp đồng cố định 20 năm.
+
+Bạn có thể mở mục "SOLNEXA TOOLS" trên thanh menu để mô phỏng suy giảm công suất và hiệu suất BESS 20 năm ngay lập tức.`;
+    } else if (q.includes('phòng cháy') || q.includes('pccc') || q.includes('cháy')) {
+      answer = `【Quy định An toàn PCCC & Khoảng cách 3m cho Hệ thống BESS tại Nhật Bản】
+
+Hệ thống lưu trữ năng lượng sử dụng pin Lithium-ion chịu sự điều chỉnh của Thông tư PCCC số 2 và Quy chế phòng cháy địa phương:
+
+1. Khoảng cách an toàn 3m:
+   - Container đặt ngoài trời bắt buộc có khoảng trống an toàn (保有空地) tối thiểu 3m bao quanh để ngăn ngừa cháy lan và đảm bảo lối tiếp cận cho xe cứu hỏa.
+   - Bố trí đường vào tối thiểu 4m cho phương tiện chuyên dụng.
+
+2. Báo cháy và Chữa cháy tự động:
+   - Trang bị cảm biến nhiệt độ đa điểm, cảm biến khói quang điện và đầu dò khí gas sớm (CO / H2).
+   - Hệ thống xả khí chữa cháy toàn diện (Total Flooding) FK-5-1-12 hoặc Sol khí Aerosol không gây tổn hại mạch điện tử.
+
+3. Thủ tục Pháp lý:
+   - Đăng ký lưu giữ chất nguy hại số lượng nhỏ (少量危険物届出) tại phòng cứu hỏa quận/huyện sở tại trước khi khởi công ít nhất 7-30 ngày.`;
+    } else if (q.includes('cáp') || q.includes('sụt áp') || q.includes('jis c 3605') || q.includes('dây')) {
+      answer = `【Tính toán Tiết diện Cáp & Độ sụt áp theo Tiêu chuẩn JIS C 3605】
+
+1. Tiêu chuẩn áp dụng:
+   - JIS C 3605 đối với cáp điện lực cách điện XLPE (CV / CVD / CVT 600V & 6.6kV).
+   - Hệ số suy giảm dòng cho phép dựa theo môi trường lắp đặt: đi trong ống ngầm, máng cáp hở, rãnh bê tông và hệ số đi nhiều sợi liền kề.
+
+2. Tiêu chí sụt áp tối ưu:
+   - Tuyến DC (Tấm PV ➔ Hộp gom / Inverter): Sụt áp ΔV ≤ 1.0%.
+   - Tuyến AC (Inverter ➔ Trạm biến áp ➔ Điểm đấu nối): Sụt áp ΔV ≤ 1.0%.
+   - Tổng độ sụt áp toàn hệ thống khuyến nghị ≤ 2.0% để bảo toàn dòng tiền bán điện trong suốt vòng đời dự án 20 năm.
+
+3. Công thức tính sụt áp 3 pha 3 dây:
+   ΔV = √3 × I × L × (R·cosφ + X·sinφ) / 1000
+   Trong đó: I (Dòng định mức A), L (Khoảng cách m), R (Điện trở ruột dẫn Ω/km ở 90°C), X (Điện kháng cảm Ω/km).`;
+    } else if (q.includes('đấu nối') || q.includes('biến áp') || q.includes('trung thế') || q.includes('cao thế') || q.includes('sld')) {
+      answer = `【Quy trình Đấu nối Lưới điện Cao thế (22kV/66kV) & Sơ đồ Đơn tuyến SLD】
+
+1. Phân cấp điện áp đấu nối:
+   - Hạ thế: < 50 kW (Đấu nối lưới phân phối hạ thế trạm biến áp cực).
+   - Cao thế (高圧): 50 kW ~ dưới 2,000 kW (Lưới 6.6kV, trạm biến áp hợp bộ Cubicle, máy cắt chân không VCB).
+   - Đặc biệt cao thế (特高): Từ 2,000 kW trở lên (Lưới 22kV / 66kV / 154kV, trạm biến áp ngoài trời hoặc GIS).
+
+2. Đấu nối Không cam kết truyền tải (Non-firm Connect & Manage):
+   - Đấu nối vào các đường dây nghẽn với điều kiện tiết giảm công suất khi lưới đầy tải. Kết hợp trạm pin lưu trữ BESS giúp sạc giữ lại lượng điện bị tiết giảm để phát lại vào giờ giá cao.
+
+3. Phối hợp bảo vệ rơ-le (Protection Coordination):
+   - Tính toán trị số chỉnh định cho rơ-le so lệch tỷ lệ (87T), rơ-le quá dòng (51/51V), chạm đất quá áp (64OV) và chống phát ngược công suất (67R).`;
+    } else {
+      answer = `【SOLNEXA AI - Cố vấn Kỹ thuật Trưởng Năng lượng Tái tạo & BESS】
+
+Xin chào! Tôi là trợ lý AI chuyên môn của Công ty Cổ phần SOLNEXA (株式会社ソルネクサ - Nhật Bản).
+
+Chúng tôi chuyên sâu về:
+1. Thiết kế kỹ thuật Điện mặt trời (Utility Solar) & Trạm pin lưu trữ lưới (Grid-scale BESS).
+2. Pháp lý Nhật Bản: Báo cáo kế hoạch thi công Điện lực Điều 48, Quy chuẩn PCCC Nhật Bản (Thông tư số 2, khoảng trống 3m).
+3. Tối ưu hóa doanh thu FIP, thị trường chênh lệch giá JEPX và thị trường công suất dài hạn.
+4. Công cụ tính toán kỹ thuật chuẩn JIS (JIS C 8955 kết cấu giàn, JIS C 3605 tính cáp & độ sụt áp, sơ đồ đơn tuyến SLD).
+
+Bạn có thể đặt câu hỏi về dự án cụ thể hoặc sử dụng các công cụ tính toán chuyên nghiệp trên thanh công cụ!`;
+    }
+  } else if (q.includes('消防') || q.includes('保有空地') || q.includes('離隔') || q.includes('消火')) {
     answer = `【系統用蓄電池（BESS）の消防法規制および保有空地基準について】
 
 系統用蓄電システムの導入においては、総務省消防庁告示第2号および各自治体の火災予防条例に基づく厳格な安全基準が適用されます。
@@ -1321,8 +1376,8 @@ async function executeGeminiMultiTurnChat(message: string, history?: any[], requ
   };
 }
 
-// 1. Dedicated Multi-Turn AI Chatbot endpoint
-apiRouter.post('/ai/chat', async (req: Request, res: Response) => {
+// 1. Dedicated Multi-Turn AI Chatbot endpoint with Rate Limiting
+apiRouter.post('/ai/chat', aiChatLimiter, async (req: Request, res: Response) => {
   try {
     const { message, history, model } = req.body;
     if (!message || typeof message !== 'string') {
@@ -1337,8 +1392,8 @@ apiRouter.post('/ai/chat', async (req: Request, res: Response) => {
   }
 });
 
-// 2. Consultation endpoint (backward-compatible)
-apiRouter.post('/ai/consultation', async (req: Request, res: Response) => {
+// 2. Consultation endpoint (backward-compatible) with Rate Limiting
+apiRouter.post('/ai/consultation', aiChatLimiter, async (req: Request, res: Response) => {
   try {
     const { message, history, model } = req.body;
     if (!message || typeof message !== 'string') {

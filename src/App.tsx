@@ -51,6 +51,7 @@ export default function App() {
   const [contactDefaultType, setContactDefaultType] = useState('technical_consulting');
   const [activeAiPrompt, setActiveAiPrompt] = useState<string | undefined>(undefined);
   const [solutionSubTab, setSolutionSubTab] = useState<'bess' | 'solar' | 'ppa' | 'grid' | 'ems'>('grid');
+  const [isChatBotOpen, setIsChatBotOpen] = useState(false);
   
   // Default to guest mode (unauthenticated client) whenever opened
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -258,6 +259,7 @@ export default function App() {
           }}
           onOpenDesignQuotation={handleOpenDesignQuotation}
           onOpenCompanyProfile={() => handleNavigateCorporate('company')}
+          onOpenChatBot={() => setIsChatBotOpen(true)}
           isLoggedIn={isLoggedIn}
           currentUser={currentUser}
           onLogout={handleLogout}
@@ -294,6 +296,7 @@ export default function App() {
                   }}
                   onOpenCompanyProfile={() => handleNavigateCorporate('company')}
                   onOpenLogin={() => setIsLoginModalOpen(true)}
+                  onOpenChatBot={() => setIsChatBotOpen(true)}
                   isLoggedIn={isLoggedIn}
                   isAdmin={Boolean(currentUser?.isAdmin)}
                   currentUser={currentUser}
@@ -453,6 +456,9 @@ export default function App() {
 
         {/* Floating Multi-Turn Gemini AI Technical Chatbot */}
         <ChatBotWidget
+          isOpen={isChatBotOpen}
+          onOpen={() => setIsChatBotOpen(true)}
+          onClose={() => setIsChatBotOpen(false)}
           onOpenContact={() => {
             setContactDefaultType('technical_consulting');
             setIsContactModalOpen(true);

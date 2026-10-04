@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Calendar, 
   ChevronRight, 
@@ -9,6 +9,7 @@ import {
   Search,
   Filter,
   Edit2,
+  Trash2,
   Plus,
   CheckCircle2,
   ShieldCheck
@@ -21,7 +22,8 @@ interface NewsViewProps {
   currentUser?: any;
 }
 
-export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin = false, currentUser }) => {
+export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin: propIsAdmin, currentUser }) => {
+  const isAdmin = Boolean(currentUser?.isAdmin || propIsAdmin);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [activeArticle, setActiveArticle] = useState<any | null>(null);
@@ -114,6 +116,23 @@ export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin = fal
 
   const [articlesList, setArticlesList] = useState(newsList);
 
+  // Fetch single source of truth from backend
+  useEffect(() => {
+    fetch('/api/news')
+      .then(res => {
+        if (res.ok) return res.json();
+        throw new Error('Failed to load news');
+      })
+      .then(data => {
+        if (Array.isArray(data) && data.length > 0) {
+          setArticlesList(data);
+        }
+      })
+      .catch(err => {
+        console.warn('Could not fetch news from backend, using defaults:', err);
+      });
+  }, []);
+
   const showToast = (msg: string) => {
     setToastMsg(msg);
     setTimeout(() => setToastMsg(null), 3000);
@@ -138,24 +157,58 @@ export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin = fal
     setIsEditorOpen(true);
   };
 
-  const handleSaveSuccess = (savedArticle: ArticleData) => {
-    setArticlesList(prev => {
-      const exists = prev.some(a => a.id === savedArticle.id);
-      if (exists) {
-        return prev.map(a => a.id === savedArticle.id ? { ...a, ...savedArticle } : a);
+  const handleDeleteArticle = async (id: string, title: string) => {
+    if (!window.confirm(`「${title}」を削除してもよろしいですか？`)) return;
+    try {
+      const res = await fetch(`/api/news/${id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        showToast(errData.message || '管理者権限がないか、削除に失敗しました。');
+        return;
       }
-      return [{
-        id: savedArticle.id,
-        date: savedArticle.date || new Date().toISOString().slice(0, 10).replace(/-/g, '.'),
-        category: savedArticle.category || '政策・法令',
-        title: savedArticle.title,
-        author: savedArticle.author || '株式会社ソルネクサ 広報室',
-        summary: savedArticle.summary || savedArticle.content?.slice(0, 120) || '',
-        content: savedArticle.content
-      } as any, ...prev];
-    });
-    showToast(`Đã lưu bài viết "${savedArticle.title}" thành công!`);
-    setIsEditorOpen(false);
+      setArticlesList(prev => prev.filter(a => a.id !== id));
+      showToast('ニュース記事を正常に削除しました。');
+    } catch {
+      showToast('通信エラーが発生しました。');
+    }
+  };
+
+  const handleSaveSuccess = async (savedArticle: ArticleData) => {
+    const isEdit = editingArticleData !== null;
+    try {
+      const endpoint = isEdit ? `/api/news/${savedArticle.id}` : '/api/news';
+      const method = isEdit ? 'PUT' : 'POST';
+      const res = await fetch(endpoint, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(savedArticle)
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.message || '保存に失敗しました。管理者権限を確認してください。');
+        return;
+      }
+
+      const resData = await res.json();
+      const updatedItem = resData.news || savedArticle;
+
+      setArticlesList(prev => {
+        const exists = prev.some(a => a.id === updatedItem.id);
+        if (exists) {
+          return prev.map(a => a.id === updatedItem.id ? { ...a, ...updatedItem } : a);
+        }
+        return [updatedItem, ...prev];
+      });
+      showToast(`Đã lưu bài viết "${savedArticle.title}" thành công!`);
+      setIsEditorOpen(false);
+    } catch {
+      showToast('Lỗi khi lưu bài viết lên hệ thống.');
+    }
   };
 
   const categories = ['all', '政策・法令', 'プレスリリース', '技術動向', '補助金情報'];
@@ -285,7 +338,7 @@ export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin = fal
                 </div>
               </div>
 
-              {/* Admin Direct Edit Button */}
+              {/* Admin Direct Edit and Delete Buttons */}
               {isAdmin && (
                 <div className="shrink-0 flex items-center gap-2 pt-2 md:pt-0 border-t md:border-t-0 border-slate-100">
                   <button
@@ -298,7 +351,19 @@ export const NewsView: React.FC<NewsViewProps> = ({ onOpenContact, isAdmin = fal
                     title="Chỉnh sửa trực tiếp tiêu đề và nội dung bài viết này"
                   >
                     <Edit2 className="w-3.5 h-3.5" />
-                    <span>Sửa bài viết</span>
+                    <span>Sửa</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteArticle(item.id, item.title);
+                    }}
+                    className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer"
+                    title="Xóa bài viết này khỏi hệ thống"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Xóa</span>
                   </button>
                 </div>
               )}

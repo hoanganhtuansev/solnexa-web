@@ -26,6 +26,11 @@ import {
   reducedHeroSlideVariants,
   reducedHeroChildVariants
 } from '../../utils/motionConfig';
+import { AdminEditFloatingBar } from './AdminEditFloatingBar';
+import { AdminVisualCustomizerModal } from './AdminVisualCustomizerModal';
+import { InlineEditableText } from './InlineEditableText';
+import { SiteConfig } from '../../types/siteConfig';
+import { DEFAULT_SITE_CONFIG } from '../../utils/siteConfigDefaults';
 
 interface CorporateHomeViewProps {
   onNavigateTab: (tab: CorporateTab, subTab?: string) => void;
@@ -33,6 +38,7 @@ interface CorporateHomeViewProps {
   onOpenEngineeringTool?: (view: any, projectId?: string) => void;
   onOpenContact: () => void;
   onOpenCompanyProfile?: () => void;
+  onOpenChatBot?: () => void;
   onOpenLogin?: () => void;
   onAskAiPrompt?: (promptText: string) => void;
   isLoggedIn?: boolean;
@@ -46,21 +52,66 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
   onOpenEngineeringTool,
   onOpenContact,
   onOpenCompanyProfile,
-  isAdmin = false
+  onOpenChatBot,
+  isAdmin = false,
+  currentUser
 }) => {
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE_CONFIG);
+  const [isVisualCustomizerOpen, setIsVisualCustomizerOpen] = useState(false);
+  const [isInlineEditActive, setIsInlineEditActive] = useState(false);
+  const [isSavingConfig, setIsSavingConfig] = useState(false);
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+
   const [currentSlide, setCurrentSlide] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [isHoveringHero, setIsHoveringHero] = useState(false);
   const shouldReduceMotion = useReducedMotion();
 
+  // Load site visual configuration from backend API
+  useEffect(() => {
+    fetch('/api/site-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.config) {
+          setSiteConfig(data.config);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleSaveSiteConfig = async () => {
+    setIsSavingConfig(true);
+    try {
+      const res = await fetch('/api/site-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(siteConfig)
+      });
+      if (res.ok) {
+        setHasUnsavedChanges(false);
+        alert('Cấu hình giao diện đã được lưu thành công vào máy chủ!');
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || 'Lỗi khi lưu cấu hình. Vui lòng kiểm tra quyền quản trị.');
+      }
+    } catch {
+      alert('Không thể kết nối đến máy chủ.');
+    } finally {
+      setIsSavingConfig(false);
+    }
+  };
+
   const heroSlides = [
     {
       id: 0,
-      image: APP_IMAGES.solarFrontierDaylight,
-      tag: '01 ｜ UTILITY-SCALE SOLAR & SUBSTATION',
-      headline: '太陽光・BESSを、\n技術で支える。',
-      subhead: '設計、施工支援、シミュレーション。\nプロジェクトに必要な技術を、シンプルに、正確に。',
-      facility: '福島県相馬市 45MW メガソーラー特高連系',
+      image: siteConfig.hero?.bgImage || APP_IMAGES.solarFrontierDaylight,
+      tag: siteConfig.hero?.tagline || '01 ｜ UTILITY-SCALE SOLAR & SUBSTATION',
+      headline: (siteConfig.hero?.titleLine1 
+        ? `${siteConfig.hero.titleLine1}${siteConfig.hero.titleLine2 ? '\n' + siteConfig.hero.titleLine2 : ''}` 
+        : '太陽光・BESSを、\n技術で支える。'),
+      subhead: siteConfig.hero?.description || '設計、施工支援、シミュレーション。\nプロジェクトに必要な技術を、シンプルに、正確に。',
+      facility: siteConfig.hero?.accentBadge || '福島県相馬市 45MW メガソーラー特高連系',
     },
     {
       id: 1,
@@ -190,28 +241,75 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
                 </motion.div>
 
                 {/* 2. Hero Main Headline */}
-                <motion.h1 
-                  variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
-                  className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.22] jp-heading"
-                >
-                  {activeSlideData.headline.split('\n').map((line, idx) => (
-                    <span key={idx} className="block">
-                      <span className="jp-chunk">{line}</span>
-                    </span>
-                  ))}
-                </motion.h1>
+                {isInlineEditActive ? (
+                  <div className="py-2">
+                    <InlineEditableText
+                      value={activeSlideData.headline}
+                      isEditMode={isInlineEditActive}
+                      as="h1"
+                      multiline={true}
+                      label={`Chỉnh sửa tiêu đề Slide ${currentSlide + 1}`}
+                      className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.22] jp-heading"
+                      onSave={(val) => {
+                        setSiteConfig(prev => ({
+                          ...prev,
+                          hero: {
+                            ...prev.hero,
+                            titleLine1: val.split('\n')[0] || val,
+                            titleLine2: val.split('\n').slice(1).join('\n') || ''
+                          }
+                        }));
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <motion.h1 
+                    variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
+                    className="text-3xl sm:text-5xl lg:text-6xl font-bold text-[#002B49] tracking-tight leading-[1.22] jp-heading"
+                  >
+                    {activeSlideData.headline.split('\n').map((line, idx) => (
+                      <span key={idx} className="block">
+                        <span className="jp-chunk">{line}</span>
+                      </span>
+                    ))}
+                  </motion.h1>
+                )}
 
                 {/* 3. Subtitle / Engineering Description */}
-                <motion.p 
-                  variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
-                  className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading"
-                >
-                  {activeSlideData.subhead.split('\n').map((line, idx) => (
-                    <span key={idx} className="block">
-                      <span className="jp-chunk">{line}</span>
-                    </span>
-                  ))}
-                </motion.p>
+                {isInlineEditActive ? (
+                  <div className="py-2">
+                    <InlineEditableText
+                      value={activeSlideData.subhead}
+                      isEditMode={isInlineEditActive}
+                      as="p"
+                      multiline={true}
+                      label={`Chỉnh sửa mô tả kỹ thuật Slide ${currentSlide + 1}`}
+                      className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading"
+                      onSave={(val) => {
+                        setSiteConfig(prev => ({
+                          ...prev,
+                          hero: {
+                            ...prev.hero,
+                            description: val
+                          }
+                        }));
+                        setHasUnsavedChanges(true);
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <motion.p 
+                    variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants}
+                    className="text-base sm:text-lg text-slate-600 font-normal leading-[1.85] max-w-xl jp-heading"
+                  >
+                    {activeSlideData.subhead.split('\n').map((line, idx) => (
+                      <span key={idx} className="block">
+                        <span className="jp-chunk">{line}</span>
+                      </span>
+                    ))}
+                  </motion.p>
+                )}
 
                 {/* 4. Dual Call To Action */}
                 <motion.div variants={shouldReduceMotion ? reducedHeroChildVariants : heroChildVariants} className="pt-2 flex flex-wrap items-center gap-4">
@@ -230,6 +328,16 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
                     <span>TOOLSを使う</span>
                     <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-[#002B49] group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
                   </button>
+
+                  {onOpenChatBot && (
+                    <button
+                      onClick={onOpenChatBot}
+                      className="inline-flex items-center gap-2 px-6 py-3.5 bg-blue-50/90 hover:bg-blue-100/90 active:scale-98 text-[#002B49] border border-blue-200/90 text-xs sm:text-[13px] font-semibold tracking-wider rounded-md transition-colors shadow-2xs cursor-pointer group"
+                    >
+                      <Sparkles className="w-4 h-4 text-blue-600 group-hover:rotate-12 transition-transform" />
+                      <span>AI技術相談</span>
+                    </button>
+                  )}
                 </motion.div>
 
               </motion.div>
@@ -956,6 +1064,37 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
 
         </div>
       </section>
+
+      {/* Admin Direct Live CMS Floating Bar */}
+      {isAdmin && (
+        <AdminEditFloatingBar
+          isAdmin={isAdmin}
+          adminName={currentUser?.name || 'Hoàng Anh Tuấn'}
+          isInlineEditActive={isInlineEditActive}
+          onToggleInlineEdit={() => setIsInlineEditActive(prev => !prev)}
+          onOpenCustomizer={() => setIsVisualCustomizerOpen(true)}
+          onQuickAddButton={() => setIsVisualCustomizerOpen(true)}
+          onSaveConfig={handleSaveSiteConfig}
+          isSaving={isSavingConfig}
+          hasUnsavedChanges={hasUnsavedChanges}
+        />
+      )}
+
+      {/* Admin Visual Customizer Modal */}
+      <AdminVisualCustomizerModal
+        isOpen={isVisualCustomizerOpen}
+        onClose={() => setIsVisualCustomizerOpen(false)}
+        config={siteConfig}
+        onChangeConfig={(newCfg) => {
+          setSiteConfig(newCfg);
+          setHasUnsavedChanges(true);
+        }}
+        onSaveToServer={handleSaveSiteConfig}
+        onResetToDefault={() => {
+          setSiteConfig(DEFAULT_SITE_CONFIG);
+          setHasUnsavedChanges(true);
+        }}
+      />
 
     </div>
   );

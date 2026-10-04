@@ -19,7 +19,8 @@ import {
   Lock,
   LogIn,
   MapPin,
-  ShieldCheck
+  ShieldCheck,
+  Sparkles
 } from 'lucide-react';
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useReducedMotion } from 'motion/react';
 import { SolnexaLogo } from './SolnexaLogo';
@@ -56,6 +57,7 @@ interface CorporateHeaderProps {
   onOpenContact: () => void;
   onOpenDesignQuotation?: () => void;
   onOpenCompanyProfile?: () => void;
+  onOpenChatBot?: () => void;
   onLogout?: () => void;
   isLoggedIn?: boolean;
   currentUser?: any;
@@ -71,6 +73,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
   onOpenContact,
   onOpenDesignQuotation,
   onOpenCompanyProfile,
+  onOpenChatBot,
   onLogout,
   isLoggedIn = false,
   currentUser,
@@ -190,6 +193,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
     }
 
     if (target === 'ai-consult') {
+      if (onOpenChatBot) onOpenChatBot();
       onNavigateTab('ai-advisor');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
@@ -241,10 +245,10 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
       className="sticky top-0 z-50 font-sans backdrop-blur-md border-b transition-colors will-change-[transform,background-color,border-color,box-shadow]"
     >
       {/* Container with stable layout and zero scroll-linked padding thrashing */}
-      <div className="max-w-7xl mx-auto px-6 lg:px-12 flex items-center justify-between py-2.5 sm:py-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between py-2.5 sm:py-3">
         
         {/* Brand Logo Zone */}
-        <div className="w-[215px] sm:w-[220px] shrink-0 mr-12 xl:mr-16 flex items-center">
+        <div className="w-[175px] sm:w-[190px] xl:w-[210px] shrink-0 mr-4 lg:mr-6 xl:mr-10 flex items-center">
           <button
             onClick={() => {
               onNavigateTab('home');
@@ -255,7 +259,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
           >
             <motion.div 
               style={shouldReduceMotion ? undefined : { scale: logoScale, y: logoY }}
-              className="origin-left flex items-center w-[172px] h-[48px]"
+              className="origin-left flex items-center w-[160px] sm:w-[172px] h-[44px] sm:h-[48px]"
             >
               <SolnexaLogo size="corporate-header" variant="horizontal" showSlogan={false} />
             </motion.div>
@@ -275,7 +279,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
               y: utilityY,
               pointerEvents: utilityPointerEvents,
             }}
-            className="w-full flex items-center justify-end gap-5 xl:gap-6 text-[11px] text-slate-500 font-normal overflow-hidden"
+            className="w-full flex items-center justify-end gap-4 xl:gap-6 text-[11px] text-slate-500 font-normal overflow-hidden whitespace-nowrap"
           >
             <button
               onClick={() => {
@@ -286,31 +290,31 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                   onNavigateTab('news');
                 }
               }}
-              className="hover:text-[#002B49] transition-colors cursor-pointer"
+              className="hover:text-[#002B49] transition-colors cursor-pointer whitespace-nowrap"
             >
               お知らせ
             </button>
             <button
               onClick={() => setIsCatalogModalOpen(true)}
-              className="hover:text-[#002B49] transition-colors cursor-pointer"
+              className="hover:text-[#002B49] transition-colors cursor-pointer whitespace-nowrap"
             >
               カタログ
             </button>
             <button
               onClick={() => setIsRecruitModalOpen(true)}
-              className="hover:text-[#002B49] transition-colors cursor-pointer hidden xl:inline-block"
+              className="hover:text-[#002B49] transition-colors cursor-pointer hidden xl:inline-block whitespace-nowrap"
             >
               採用情報
             </button>
 
             {/* ログイン (Utility bar: Tên user + ADMIN badge + nút logout hoặc nút ログイン) */}
             {isLoggedIn && currentUser ? (
-              <div className="flex items-center gap-2 border-l border-slate-200 pl-3">
-                <span className="text-[11px] text-[#002B49] font-medium flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+              <div className="flex items-center gap-2 border-l border-slate-200 pl-3 whitespace-nowrap">
+                <span className="text-[11px] text-[#002B49] font-medium flex items-center gap-1.5 whitespace-nowrap">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
                   <span className="truncate max-w-[130px]">{currentUser.name}</span>
                   {currentUser.isAdmin && (
-                    <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.2 rounded tracking-wider uppercase shadow-2xs">
+                    <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1.5 py-0.2 rounded tracking-wider uppercase shadow-2xs shrink-0">
                       ADMIN
                     </span>
                   )}
@@ -319,7 +323,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                   <button 
                     onClick={onLogout} 
                     title="ログアウト" 
-                    className="text-slate-400 hover:text-[#d81a28] transition-colors p-0.5 cursor-pointer ml-0.5"
+                    className="text-slate-400 hover:text-[#d81a28] transition-colors p-0.5 cursor-pointer ml-0.5 shrink-0"
                     aria-label="ログアウト"
                   >
                     <LogOut className="w-3 h-3" />
@@ -329,7 +333,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             ) : (
               <button
                 onClick={onOpenLogin}
-                className="hover:text-[#002B49] text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5 font-medium border-l border-slate-200 pl-3"
+                className="hover:text-[#002B49] text-slate-600 transition-colors cursor-pointer inline-flex items-center gap-1.5 font-medium border-l border-slate-200 pl-3 whitespace-nowrap"
                 title="会員・パートナーログイン"
               >
                 <LogIn className="w-3 h-3 text-slate-400" />
@@ -340,7 +344,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             {/* Language Switcher */}
             <button
               onClick={() => setActiveLang(activeLang === 'JP' ? 'EN' : 'JP')}
-              className="font-mono text-slate-500 hover:text-[#002B49] transition-colors cursor-pointer ml-1"
+              className="font-mono text-slate-500 hover:text-[#002B49] transition-colors cursor-pointer ml-1 whitespace-nowrap"
               title="言語切り替え / Switch Language"
             >
               <span className={activeLang === 'JP' ? 'font-bold text-[#002B49]' : 'text-slate-400'}>JP</span>
@@ -350,26 +354,26 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
           </motion.div>
 
           {/* Main Navigation Row */}
-          <div className="flex items-center justify-between w-full gap-6 xl:gap-8">
-            <nav className="flex items-center gap-5 xl:gap-7 ml-auto">
+          <div className="flex items-center justify-end w-full gap-3 xl:gap-5 min-w-0">
+            <nav className="flex items-center gap-3 lg:gap-4 xl:gap-6 ml-auto shrink-0">
               {navMenuItems.map((item) => {
                 const isHovered = activeDropdown === item.id;
                 return (
                   <div
                     key={item.id}
-                    className="relative py-1"
+                    className="relative py-1 shrink-0"
                     onMouseEnter={() => item.hasPopup ? handleMouseEnter(item.id) : undefined}
                     onMouseLeave={item.hasPopup ? handleMouseLeave : undefined}
                   >
                     <button
                       onClick={() => handleNavClick(item.id)}
-                      className={`text-[14px] xl:text-[15px] font-medium tracking-tight transition-colors flex items-center gap-1.5 cursor-pointer py-1 relative ${
+                      className={`text-[13px] xl:text-[14px] font-medium tracking-tight transition-colors flex items-center gap-1 cursor-pointer py-1 relative whitespace-nowrap shrink-0 ${
                         isHovered ? 'text-[#002B49] font-semibold' : 'text-slate-800 hover:text-[#002B49]'
                       }`}
                     >
-                      <span>{item.label}</span>
+                      <span className="whitespace-nowrap">{item.label}</span>
                       {item.isTools && (
-                        <span className="text-[9px] font-mono font-bold bg-[#002B49] text-amber-300 px-1 py-0.2 rounded-xs leading-none">
+                        <span className="text-[9px] font-mono font-bold bg-[#002B49] text-amber-300 px-1 py-0.2 rounded-xs leading-none shrink-0">
                           PRO
                         </span>
                       )}
@@ -384,24 +388,34 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             </nav>
 
             {/* Action CTAs */}
-            <div className="flex items-center gap-4 xl:gap-5 pl-3 border-l border-slate-200 shrink-0">
+            <div className="flex items-center gap-2 xl:gap-3 pl-2.5 xl:pl-3 border-l border-slate-200 shrink-0">
+              <button
+                onClick={onOpenChatBot}
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 xl:px-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-[#002B49] border border-blue-200/80 rounded-md text-xs font-semibold shadow-2xs transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 group"
+                title="SOLNEXA AI技術顧問チャットボットを起動"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-blue-600 group-hover:rotate-12 transition-transform duration-200 shrink-0" />
+                <span className="whitespace-nowrap">AIチャット</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              </button>
+
               <button
                 onClick={onOpenContact}
-                className="inline-flex items-center gap-1.5 text-xs xl:text-[13px] font-medium text-slate-700 hover:text-[#002B49] transition-colors duration-200 py-1 cursor-pointer whitespace-nowrap group"
+                className="inline-flex items-center gap-1 text-xs xl:text-[13px] font-medium text-slate-700 hover:text-[#002B49] transition-colors duration-200 px-1.5 py-1 cursor-pointer whitespace-nowrap shrink-0 group"
                 title="一般的なお問い合わせ・技術相談"
               >
-                <Mail className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#002B49] transition-colors" />
-                <span>お問い合わせ</span>
+                <Mail className="w-3.5 h-3.5 text-slate-400 group-hover:text-[#002B49] transition-colors shrink-0" />
+                <span className="whitespace-nowrap">お問い合わせ</span>
               </button>
 
               <button
                 onClick={onOpenDesignQuotation || onOpenContact}
-                className="inline-flex items-center gap-1.5 px-4 py-2 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wide rounded-md transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer group whitespace-nowrap"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wide rounded-md transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer group whitespace-nowrap shrink-0"
                 title="太陽光・蓄電池の設計・概算見積書作成 (無料)"
               >
-                <span className="text-amber-200 font-normal text-[11px]">無料</span>
-                <span>設計見積</span>
-                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-1 group-hover:-translate-y-0.5 transition-transform duration-200" />
+                <span className="text-amber-200 font-normal text-[11px] whitespace-nowrap">無料</span>
+                <span className="whitespace-nowrap">設計見積</span>
+                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-1 group-hover:-translate-y-0.5 transition-transform duration-200 shrink-0" />
               </button>
             </div>
 
@@ -411,6 +425,14 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
 
         {/* Mobile Hamburger & Quick CTA */}
         <div className="flex items-center gap-2 lg:hidden">
+          <button
+            onClick={onOpenChatBot}
+            className="p-1.5 text-blue-900 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 flex items-center gap-1 text-xs font-bold"
+            title="AIチャットボット"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-blue-600" />
+            <span className="text-[11px]">AI</span>
+          </button>
           <button
             onClick={onOpenDesignQuotation || onOpenContact}
             className="px-3 py-1.5 bg-[#d81a28] text-white text-xs font-medium rounded transition-colors"

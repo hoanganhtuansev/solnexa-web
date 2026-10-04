@@ -244,7 +244,7 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
   const [editingArticle, setEditingArticle] = useState<ArticleData | null>(null);
   const [statusNotification, setStatusNotification] = useState<string | null>(null);
 
-  const isAdmin = currentUser?.isAdmin || currentUser?.email === 'admin@solnexa.jp' || currentUser?.role?.includes('管理者');
+  const isAdmin = Boolean(currentUser?.isAdmin);
 
   // Load articles from backend API on mount, with fallback to initial
   useEffect(() => {
@@ -291,16 +291,25 @@ export const KnowledgeView: React.FC<KnowledgeViewProps> = ({
   const handleDelete = async (id: string, title: string) => {
     if (!window.confirm(`「${title}」を削除してもよろしいですか？`)) return;
     try {
-      await fetch(`/api/articles/${id}`, { method: 'DELETE' });
-    } catch {}
-
-    const updated = articles.filter(a => a.id !== id);
-    setArticles(updated);
-    localStorage.setItem('solnexa_custom_articles', JSON.stringify(updated));
-    if (selectedArticleId === id && updated.length > 0) {
-      setSelectedArticleId(updated[0].id);
+      const res = await fetch(`/api/articles/${id}`, { 
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        showNotification(data.message || '管理者権限がないか、記事の削除に失敗しました。');
+        return;
+      }
+      const updated = articles.filter(a => a.id !== id);
+      setArticles(updated);
+      localStorage.setItem('solnexa_custom_articles', JSON.stringify(updated));
+      if (selectedArticleId === id && updated.length > 0) {
+        setSelectedArticleId(updated[0].id);
+      }
+      showNotification('記事を正常に削除しました。');
+    } catch {
+      showNotification('サーバーとの通信に失敗しました。');
     }
-    showNotification('記事を正常に削除しました。');
   };
 
   const handleSaveSuccess = (savedArticle: ArticleData) => {
