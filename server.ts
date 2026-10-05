@@ -9,6 +9,7 @@ import dotenv from 'dotenv';
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import { apiRouter } from './server/routes/api';
+import { siteWeatherRouter } from './server/routes/siteWeather';
 import { authDb } from './server/db/authDatabase';
 
 dotenv.config();
@@ -39,6 +40,7 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
   // API Routes mounted FIRST
+  app.use('/api/site-weather', siteWeatherRouter);
   app.use('/api', apiRouter);
 
   // Guard: NEVER allow any /api request to fall through to Vite SPA / HTML
