@@ -525,6 +525,19 @@ async function fetchAmedas(lat: number, lon: number): Promise<AmedasObservationR
   }
 }
 
+function normalizeJapaneseAreaName(value: string | null | undefined): string {
+  return String(value || '')
+    .replace(/[\\s　]/g, '')
+    .replace(/ヶ/g, 'ケ')
+    .trim();
+}
+
+function normalizePrefectureForJma(value: string | null | undefined): string {
+  const normalized = normalizeJapaneseAreaName(value);
+  if (normalized === '北海道') return '北海道';
+  return normalized.replace(/[都府県]$/, '');
+}
+
 function findJmaArea(areaData: JsonRecord, municipality: string | null, prefecture: string | null): {
   officeCode: string | null;
   officeName: string | null;
@@ -537,7 +550,11 @@ function findJmaArea(areaData: JsonRecord, municipality: string | null, prefectu
   const offices = areaData?.offices || {};
 
   if (municipality) {
-    const cityEntry = Object.entries(class20s).find(([, value]: any) => value?.name === municipality);
+    const municipalityKey = normalizeJapaneseAreaName(municipality);
+    const cityEntry = Object.entries(class20s).find(
+      ([, value]: any) => normalizeJapaneseAreaName(value?.name) === municipalityKey
+    );
+
     if (cityEntry) {
       const city = cityEntry[1] as JsonRecord;
       const class15Code = city.parent || null;
@@ -557,7 +574,11 @@ function findJmaArea(areaData: JsonRecord, municipality: string | null, prefectu
   }
 
   if (prefecture) {
-    const officeEntry = Object.entries(offices).find(([, value]: any) => value?.name === prefecture.replace(/[都府県]$/, ''));
+    const prefectureKey = normalizePrefectureForJma(prefecture);
+    const officeEntry = Object.entries(offices).find(
+      ([, value]: any) => normalizePrefectureForJma(value?.name) === prefectureKey
+    );
+
     if (officeEntry) {
       return {
         officeCode: officeEntry[0],
