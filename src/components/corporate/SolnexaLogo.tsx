@@ -20,7 +20,7 @@ export const SolnexaLogo: React.FC<SolnexaLogoProps> = ({
     sm: { iconSize: 28, titleSize: 'text-base', sloganSize: 'text-[9px]', badgeSize: 'text-[9px]' },
     md: { iconSize: 36, titleSize: 'text-xl', sloganSize: 'text-[10px]', badgeSize: 'text-[10px]' },
     lg: { iconSize: 48, titleSize: 'text-[25px]', sloganSize: 'text-xs', badgeSize: 'text-xs' },
-    'corporate-header': { iconSize: 48, titleSize: 'text-[26px]', sloganSize: 'text-[10px]', badgeSize: 'text-[10px]' },
+    'corporate-header': { iconSize: 36, titleSize: 'text-[22px]', sloganSize: 'text-[9px]', badgeSize: 'text-[9px]' },
     xl: { iconSize: 60, titleSize: 'text-3xl', sloganSize: 'text-sm', badgeSize: 'text-sm' }
   }[size];
 

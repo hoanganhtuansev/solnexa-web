@@ -111,8 +111,17 @@ export default function App() {
     setIsContactModalOpen(true);
   };
 
-  const handleOpenEngineeringTool = (view: ProjectSubView, projectId: string = 'proj-chiba-solar') => {
+  const [quickToolInitialTab, setQuickToolInitialTab] = useState<'snow-weather' | 'kyokuto-vdrop' | 'isijp-conduit' | 'pv-pcs-cable' | 'circuit-vdrop' | 'cable-selection' | 'current-calc' | 'transformer-sizing' | 'pv-string-check'>('snow-weather');
+
+  const handleOpenEngineeringTool = (view: any, projectId: string = 'proj-chiba-solar') => {
     setActiveProjectId(projectId);
+    if (view === 'snow-weather') {
+      setQuickToolInitialTab('snow-weather');
+      setActiveTab('quick-engineering');
+      setPortalMode('engineering');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
     setProjectSubView(view);
     setActiveTab('workspace');
     setPortalMode('engineering');
@@ -506,6 +515,11 @@ export default function App() {
           setPortalMode('corporate');
           window.scrollTo({ top: 0, behavior: 'smooth' });
         }}
+        activeQuickTool={quickToolInitialTab}
+        onSelectQuickTool={tool => {
+          setQuickToolInitialTab(tool as any);
+          setActiveTab('quick-engineering');
+        }}
       />
 
       {/* 2. Main Web Layout Area */}
@@ -600,6 +614,9 @@ export default function App() {
 
               {(activeTab === 'quick-engineering' || activeTab === 'tools' || activeTab === 'calculators') && (
                 <QuickEngineeringTab
+                  activeSubTab={quickToolInitialTab}
+                  onSelectSubTab={setQuickToolInitialTab}
+                  initialSubTab={quickToolInitialTab}
                   onOpenProject={id => handleOpenProject(id, 'overview')}
                   onSaveToProject={(calc) => {
                     handleOpenProject('proj-chiba-solar', 'cable-voltage-drop');

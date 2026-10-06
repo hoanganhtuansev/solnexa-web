@@ -23,7 +23,8 @@ import {
   Plus,
   Boxes,
   FileText,
-  ChevronRight
+  ChevronRight,
+  CloudSnow
 } from 'lucide-react';
 import { Project, ActiveTab } from '../types';
 import { NewProjectModal } from './NewProjectModal';
@@ -316,6 +317,33 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {/* Tool 0: BESS Snow & Weather Checker */}
+          <button
+            onClick={() => onNavigateToTab('quick-engineering')}
+            className="p-3.5 rounded-xl border-2 border-blue-400/80 bg-blue-50/40 hover:border-blue-600 hover:bg-blue-50/80 transition-all text-left group flex items-start space-x-3 cursor-pointer shadow-2xs relative overflow-hidden"
+          >
+            <div className="w-9 h-9 rounded-lg bg-blue-600 text-white flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform shadow-xs">
+              <CloudSnow className="w-4 h-4 stroke-[2]" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-slate-900 group-hover:text-blue-800 transition-colors">
+                  Snow &amp; Weather Checker (積雪・気象)
+                </span>
+                <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1 py-0.2 rounded-xs">
+                  NEW
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-600 mt-0.5 line-clamp-2">
+                建設省告示第1455号×自治体公式規定値×気象庁AMeDASハイブリッド解析
+              </p>
+              <div className="mt-2 text-[10px] text-blue-700 font-mono font-bold flex items-center gap-1">
+                <span>公式値CHECK &amp; 自動計算 対照</span>
+                <span>→</span>
+              </div>
+            </div>
+          </button>
+
           {/* Tool 1: Kyokuto Voltage Drop */}
           <button
             onClick={() => onNavigateToTab('quick-engineering')}

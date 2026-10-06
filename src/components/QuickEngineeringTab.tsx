@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Zap,
   Activity,
@@ -21,10 +21,16 @@ import {
   Plus,
   HelpCircle,
   FileText,
-  ExternalLink
+  ExternalLink,
+  CloudSnow,
+  LayoutGrid,
+  ListFilter,
+  Check,
+  Sparkles
 } from 'lucide-react';
 import { Project } from '../types';
 import { ConduitSizingCalculator } from './ConduitSizingCalculator';
+import { SnowWeatherChecker } from './SnowWeatherChecker';
 import {
   calculateKyokutoVoltageDrop,
   evaluateAllJisCableCandidates,
@@ -33,6 +39,7 @@ import {
 } from '../utils/japaneseStandards';
 
 export type QuickToolTab =
+  | 'snow-weather'
   | 'kyokuto-vdrop'
   | 'isijp-conduit'
   | 'pv-pcs-cable'
@@ -47,20 +54,168 @@ interface QuickEngineeringTabProps {
   onOpenProject?: (projectId: string) => void;
   isLoggedIn?: boolean;
   onOpenLogin?: () => void;
+  initialSubTab?: QuickToolTab;
+  activeSubTab?: QuickToolTab;
+  onSelectSubTab?: (tab: QuickToolTab) => void;
 }
+
+export interface QuickToolMeta {
+  id: QuickToolTab;
+  alias?: QuickToolTab[];
+  titleEn: string;
+  titleJa: string;
+  badge: string;
+  badgeType: 'free' | 'member';
+  icon: React.ComponentType<{ className?: string }>;
+  accentColor: string;
+  cardBorder: string;
+  desc: string;
+  standard: string;
+  outputHighlights: string[];
+}
+
+export const QUICK_ENGINEERING_TOOLS: QuickToolMeta[] = [
+  {
+    id: 'snow-weather',
+    titleEn: 'Snow & Weather Checker',
+    titleJa: '積雪・気象条件 (告示1455号)',
+    badge: '無料 即時解析',
+    badgeType: 'free',
+    icon: CloudSnow,
+    accentColor: 'text-sky-600 bg-sky-100 border-sky-200',
+    cardBorder: 'hover:border-sky-400',
+    desc: '建設省告示第1455号による自動計算値（d = α×ls + β×rs + γ）と特定行政庁公式規定値（垂直積雪量）を瞬時に対照。海率rs幾何計算・AMeDAS実況・7日間予報・BESS留意事項。',
+    standard: '建設省告示第1455号 / 建築基準法施行令第86条第3項',
+    outputHighlights: ['垂直積雪量(cm)', '海率rs幾何計算', 'AMeDAS実況', '凍結注意']
+  },
+  {
+    id: 'kyokuto-vdrop',
+    alias: ['circuit-vdrop'],
+    titleEn: 'Kyokuto Voltage Drop',
+    titleJa: '極東電線 電圧降下計算',
+    badge: '無料',
+    badgeType: 'free',
+    icon: Activity,
+    accentColor: 'text-amber-600 bg-amber-100 border-amber-200',
+    cardBorder: 'hover:border-amber-400',
+    desc: '極東電線工業技術基準およびJIS C 3605規格準拠。単相・三相低圧電路における導体温度補正許容電流判定と電圧降下率（1%〜3%）を高速算出。',
+    standard: 'JIS C 3605 / 極東電線技術資料',
+    outputHighlights: ['電圧降下(V/%)', '許容電流(A)', 'JIS適合判定']
+  },
+  {
+    id: 'pv-string-check',
+    titleEn: 'PV String Check',
+    titleJa: 'PV ストリング検討',
+    badge: '無料',
+    badgeType: 'free',
+    icon: Sliders,
+    accentColor: 'text-indigo-600 bg-indigo-100 border-indigo-200',
+    cardBorder: 'hover:border-indigo-400',
+    desc: '計画地最低設計気温時における太陽電池モジュール開放電圧（Voc_max）を自動計算し、PCS最大許容入力電圧に対する適正直列モジュール数を検証。',
+    standard: 'JIS C 8955 / 電気設備技術基準',
+    outputHighlights: ['Voc_max(V)', '最適直列数(枚)', 'PCS許容入力判定']
+  },
+  {
+    id: 'current-calc',
+    titleEn: 'Current Calculation',
+    titleJa: '電流計算 & ブレーカ選定',
+    badge: '無料',
+    badgeType: 'free',
+    icon: Calculator,
+    accentColor: 'text-emerald-600 bg-emerald-100 border-emerald-200',
+    cardBorder: 'hover:border-emerald-400',
+    desc: '設備容量（kW/kVA）から単相・三相負荷電流を求め、JIS C 8305に基づく配線用遮断器（MCCB）の定格トリップ（AT）およびフレーム（AF）を自動選定。',
+    standard: 'JIS C 8305 / 内線規程第1375節',
+    outputHighlights: ['定格負荷電流(A)', '遮断器AT/AF', '安全率125%判定']
+  },
+  {
+    id: 'isijp-conduit',
+    alias: ['cable-selection'],
+    titleEn: 'ISIJP Conduit Sizing',
+    titleJa: '電線管・配管選定 (ISIJP)',
+    badge: '要無料登録',
+    badgeType: 'member',
+    icon: Cable,
+    accentColor: 'text-purple-600 bg-purple-100 border-purple-200',
+    cardBorder: 'hover:border-purple-400',
+    desc: '内線規程第3110節に基づく電線管占有率（同一電線管32%以下）を自動計算。厚鋼G管・薄鋼E管・硬質ビニルVE管・波付FEP管を即時サイジング。',
+    standard: '内線規程第3110節 / JIS C 8305',
+    outputHighlights: ['管占有率(%)', '最適呼び径(mm)', 'G/E/VE/FEP管']
+  },
+  {
+    id: 'pv-pcs-cable',
+    titleEn: 'PV - PCS Cable Design',
+    titleJa: 'PV - PCS 間配線設計',
+    badge: '要無料登録',
+    badgeType: 'member',
+    icon: Zap,
+    accentColor: 'text-blue-600 bg-blue-100 border-blue-200',
+    cardBorder: 'hover:border-blue-400',
+    desc: '接続箱・集電盤からPCS間の直流幹線ケーブル選定。JIS C 3605規格許容電流低減係数、周囲温度補正、埋設トレンチ熱抵抗を反映。',
+    standard: 'JIS C 3605 / JIS C 8955',
+    outputHighlights: ['幹線サイズ(sq)', '条数選定', '温度・埋設熱補正']
+  },
+  {
+    id: 'transformer-sizing',
+    titleEn: 'Transformer Sizing',
+    titleJa: '変圧器容量選定 (トランス)',
+    badge: '要無料登録',
+    badgeType: 'member',
+    icon: Boxes,
+    accentColor: 'text-rose-600 bg-rose-100 border-rose-200',
+    cardBorder: 'hover:border-rose-400',
+    desc: '太陽光発電所および系統用蓄電システム（BESS）の受電・連系用変圧器容量（kVA/MVA）を力率・需要率・インピーダンス整合に基づきサイジング。',
+    standard: 'JEC-2200 / 電気設備技術基準解釈',
+    outputHighlights: ['変圧器容量(kVA)', '特高・高圧区分', '力率自動補正']
+  }
+];
 
 export const QuickEngineeringTab: React.FC<QuickEngineeringTabProps> = ({
   onSaveToProject,
   onOpenProject,
   isLoggedIn = false,
-  onOpenLogin
+  onOpenLogin,
+  initialSubTab = 'snow-weather',
+  activeSubTab: propActiveSubTab,
+  onSelectSubTab
 }) => {
-  const [activeSubTab, setActiveSubTab] = useState<QuickToolTab>('kyokuto-vdrop');
+  const [localActiveSubTab, setLocalActiveSubTab] = useState<QuickToolTab>(propActiveSubTab || initialSubTab || 'snow-weather');
+  const activeSubTab = propActiveSubTab || localActiveSubTab;
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (propActiveSubTab) {
+      setLocalActiveSubTab(propActiveSubTab);
+    } else if (initialSubTab) {
+      setLocalActiveSubTab(initialSubTab);
+    }
+  }, [propActiveSubTab, initialSubTab]);
+
+  const setActiveSubTab = (tab: QuickToolTab) => {
+    setLocalActiveSubTab(tab);
+    onSelectSubTab?.(tab);
+  };
 
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  const activeToolMeta = useMemo(() => {
+    return QUICK_ENGINEERING_TOOLS.find(
+      t => t.id === activeSubTab || (t.alias && t.alias.includes(activeSubTab))
+    ) || QUICK_ENGINEERING_TOOLS[0];
+  }, [activeSubTab]);
+
+  const handleSelectTool = (toolId: QuickToolTab) => {
+    setActiveSubTab(toolId);
+    // Smooth scroll down to the active tool viewport so user immediately sees it
+    setTimeout(() => {
+      const el = document.getElementById('active-tool-viewport');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }, 60);
   };
 
   // -------------------------------------------------------------
@@ -410,125 +565,51 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
         </div>
       )}
 
-      {/* Hero Header & Sub-tool Navigation Banner (Matching Image 6) */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 relative overflow-hidden">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex items-start space-x-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center text-white shadow-md shadow-blue-500/20 shrink-0">
-              <Zap className="w-5 h-5 fill-white" />
-            </div>
-            <div>
-              <div className="flex items-center space-x-2">
-                <h1 className="text-xl font-bold text-slate-900 tracking-tight">Quick Engineering</h1>
-                <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md">
-                  クイックエンジニアリング
-                </span>
-              </div>
-              <p className="text-xs text-slate-500 mt-0.5">
-                各種計算・検討ツールで、設計の初期検討を素早く行えます。
-              </p>
-            </div>
+      {/* Streamlined Active Tool Top Banner (Replacing the crowded red-boxed horizontal overflow bar) */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-xs p-4 sm:p-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center space-x-3.5">
+          <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${activeToolMeta.accentColor}`}>
+            <activeToolMeta.icon className="w-5 h-5" />
           </div>
-
-          <div className="flex items-center space-x-2">
-            <button
-              onClick={handleExportReport}
-              className="inline-flex items-center space-x-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer active:scale-98"
-            >
-              <FileText className="w-3.5 h-3.5 text-slate-500" />
-              <span>Export Report</span>
-            </button>
-            <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-2.5 py-1 rounded-lg border border-blue-200/60 hidden sm:inline-block">
-              JIS C 3605 &amp; 8305 Standardized
-            </span>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200/60">
+                クイック設計ツール
+              </span>
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                activeToolMeta.badgeType === 'free' 
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200/60'
+                  : 'bg-amber-50 text-amber-800 border border-amber-200/60'
+              }`}>
+                {activeToolMeta.badge}
+              </span>
+              <span className="text-[10px] text-slate-400 font-mono hidden sm:inline">
+                👈 左側サイドバーから7つのツールを瞬時に切替可能
+              </span>
+            </div>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight mt-1 flex items-center gap-2">
+              <span>{activeToolMeta.titleJa}</span>
+              <span className="text-xs sm:text-sm font-normal text-slate-500 hidden sm:inline">
+                ({activeToolMeta.titleEn})
+              </span>
+            </h1>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {activeToolMeta.standard}
+            </p>
           </div>
         </div>
 
-        {/* Horizontal Quick Tool Switcher Pills */}
-        <div className="flex items-center space-x-2 overflow-x-auto pt-4 border-t border-slate-100 mt-4 custom-scrollbar pb-1">
+        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
           <button
-            onClick={() => setActiveSubTab('kyokuto-vdrop')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'kyokuto-vdrop' || activeSubTab === 'circuit-vdrop'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
+            onClick={handleExportReport}
+            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer active:scale-98"
           >
-            <Activity className="w-3.5 h-3.5" />
-            <span>Kyokuto Voltage Drop</span>
-            <span className="text-[10px] opacity-80 font-normal">極東電線 電圧降下</span>
-            <span className="text-[9px] bg-emerald-500/20 text-emerald-700 px-1 py-0.5 rounded font-bold">無料</span>
+            <FileText className="w-3.5 h-3.5 text-slate-500" />
+            <span>Export Report</span>
           </button>
-
-          <button
-            onClick={() => setActiveSubTab('pv-string-check')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'pv-string-check'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            <Sliders className="w-3.5 h-3.5" />
-            <span>PV String Check</span>
-            <span className="text-[10px] opacity-80 font-normal">PV ストリング検討</span>
-            <span className="text-[9px] bg-emerald-500/20 text-emerald-700 px-1 py-0.5 rounded font-bold">無料</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('current-calc')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'current-calc'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            <Calculator className="w-3.5 h-3.5" />
-            <span>Current Calculation</span>
-            <span className="text-[10px] opacity-80 font-normal">電流計算 &amp; ブレーカ</span>
-            <span className="text-[9px] bg-emerald-500/20 text-emerald-700 px-1 py-0.5 rounded font-bold">無料</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('isijp-conduit')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'isijp-conduit' || activeSubTab === 'cable-selection'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            <Cable className="w-3.5 h-3.5" />
-            <span>ISIJP Conduit Sizing</span>
-            <span className="text-[10px] opacity-80 font-normal">電線管・配管選定</span>
-            <span className="text-[9px] bg-amber-500/20 text-amber-800 px-1 py-0.5 rounded font-bold">要無料登録</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('pv-pcs-cable')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'pv-pcs-cable'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            <Zap className="w-3.5 h-3.5" />
-            <span>PV - PCS Cable Design</span>
-            <span className="text-[10px] opacity-80 font-normal">PV-PCS 配線設計</span>
-            <span className="text-[9px] bg-amber-500/20 text-amber-800 px-1 py-0.5 rounded font-bold">要無料登録</span>
-          </button>
-
-          <button
-            onClick={() => setActiveSubTab('transformer-sizing')}
-            className={`flex items-center space-x-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap transition-all ${
-              activeSubTab === 'transformer-sizing'
-                ? 'bg-blue-600 text-white shadow-sm shadow-blue-500/20'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900'
-            }`}
-          >
-            <Boxes className="w-3.5 h-3.5" />
-            <span>Transformer Sizing</span>
-            <span className="text-[10px] opacity-80 font-normal">変圧器容量選定</span>
-            <span className="text-[9px] bg-amber-500/20 text-amber-800 px-1 py-0.5 rounded font-bold">要無料登録</span>
-          </button>
+          <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-2 rounded-xl border border-blue-200/60 hidden sm:inline-block">
+            JIS C 3605 &amp; 8305 Standardized
+          </span>
         </div>
       </div>
 
@@ -563,6 +644,17 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
             </button>
           </div>
         </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* 0. BESS SNOW & WEATHER CHECKER (積雪・気象条件チェック)   */}
+      {/* ========================================================= */}
+      {activeSubTab === 'snow-weather' && (
+        <SnowWeatherChecker
+          onOpenProject={onOpenProject}
+          isLoggedIn={isLoggedIn}
+          onOpenLogin={onOpenLogin}
+        />
       )}
 
       {/* ========================================================= */}

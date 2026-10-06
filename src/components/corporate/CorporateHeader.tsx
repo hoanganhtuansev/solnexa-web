@@ -20,7 +20,8 @@ import {
   LogIn,
   MapPin,
   ShieldCheck,
-  Sparkles
+  Sparkles,
+  CloudSnow
 } from 'lucide-react';
 import { motion, AnimatePresence, useScroll, useTransform, useSpring, useReducedMotion } from 'motion/react';
 import { SolnexaLogo } from './SolnexaLogo';
@@ -167,22 +168,26 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
     setIsMobileMenuOpen(false);
     setActiveDropdown(null);
 
-    if (target === 'business') {
-      if (currentTab === 'home') {
-        const el = document.getElementById('business');
-        if (el) el.scrollIntoView({ behavior: 'smooth' });
-      } else {
-        onNavigateTab('home');
-        setTimeout(() => {
-          const el = document.getElementById('business');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
-        }, 120);
-      }
+    if (target === 'solutions' || target === 'business') {
+      onNavigateTab('solutions', subTab);
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (target === 'products') {
+      onNavigateTab('products');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
 
     if (target === 'works') {
       onNavigateTab('projects');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      return;
+    }
+
+    if (target === 'knowledge') {
+      onNavigateTab('knowledge');
       window.scrollTo({ top: 0, behavior: 'smooth' });
       return;
     }
@@ -227,10 +232,11 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
   };
 
   const navMenuItems = [
-    { id: 'business', label: '私たちについて', hasPopup: true },
-    { id: 'works', label: '実績紹介', hasPopup: true },
+    { id: 'solutions', label: 'ソリューション', hasPopup: true },
+    { id: 'products', label: '製品カタログ', hasPopup: false },
+    { id: 'works', label: '導入実績', hasPopup: true },
+    { id: 'knowledge', label: '技術ナレッジ', hasPopup: false },
     { id: 'tools', label: '設計ツール', isTools: true, hasPopup: true },
-    { id: 'ai-consult', label: 'AI技術相談', hasPopup: false },
     { id: 'company', label: '企業情報', hasPopup: true },
   ];
 
@@ -242,13 +248,13 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
         boxShadow: headerShadow,
         y: headerY,
       }}
-      className="sticky top-0 z-50 font-sans backdrop-blur-md border-b transition-colors will-change-[transform,background-color,border-color,box-shadow]"
+      className="sticky top-0 z-50 bg-white font-sans backdrop-blur-md border-b border-slate-200/80 transition-colors will-change-[transform,background-color,border-color,box-shadow]"
     >
       {/* Container with stable layout and zero scroll-linked padding thrashing */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between py-2.5 sm:py-3">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 xl:px-12 flex items-center justify-between py-2 sm:py-2.5">
         
         {/* Brand Logo Zone */}
-        <div className="w-[175px] sm:w-[190px] xl:w-[210px] shrink-0 mr-4 lg:mr-6 xl:mr-10 flex items-center">
+        <div className="shrink-0 mr-3 lg:mr-5 xl:mr-8 flex items-center z-10">
           <button
             onClick={() => {
               onNavigateTab('home');
@@ -259,7 +265,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
           >
             <motion.div 
               style={shouldReduceMotion ? undefined : { scale: logoScale, y: logoY }}
-              className="origin-left flex items-center w-[160px] sm:w-[172px] h-[44px] sm:h-[48px]"
+              className="origin-left flex items-center h-[38px] sm:h-[42px]"
             >
               <SolnexaLogo size="corporate-header" variant="horizontal" showSlogan={false} />
             </motion.div>
@@ -354,8 +360,8 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
           </motion.div>
 
           {/* Main Navigation Row */}
-          <div className="flex items-center justify-end w-full gap-3 xl:gap-5 min-w-0">
-            <nav className="flex items-center gap-3 lg:gap-4 xl:gap-6 ml-auto shrink-0">
+          <div className="flex items-center justify-end w-full gap-2 xl:gap-4 min-w-0">
+            <nav className="flex items-center gap-1.5 lg:gap-2.5 xl:gap-5 ml-auto shrink-0">
               {navMenuItems.map((item) => {
                 const isHovered = activeDropdown === item.id;
                 return (
@@ -367,7 +373,7 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                   >
                     <button
                       onClick={() => handleNavClick(item.id)}
-                      className={`text-[13px] xl:text-[14px] font-medium tracking-tight transition-colors flex items-center gap-1 cursor-pointer py-1 relative whitespace-nowrap shrink-0 ${
+                      className={`text-xs xl:text-[13.5px] font-medium tracking-tight transition-colors flex items-center gap-1 cursor-pointer py-1 px-1 xl:px-1.5 relative whitespace-nowrap shrink-0 ${
                         isHovered ? 'text-[#002B49] font-semibold' : 'text-slate-800 hover:text-[#002B49]'
                       }`}
                     >
@@ -388,10 +394,10 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
             </nav>
 
             {/* Action CTAs */}
-            <div className="flex items-center gap-2 xl:gap-3 pl-2.5 xl:pl-3 border-l border-slate-200 shrink-0">
+            <div className="flex items-center gap-1.5 xl:gap-2.5 pl-2 xl:pl-3 border-l border-slate-200 shrink-0">
               <button
                 onClick={onOpenChatBot}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 xl:px-3 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-[#002B49] border border-blue-200/80 rounded-md text-xs font-semibold shadow-2xs transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 group"
+                className="inline-flex items-center gap-1.5 px-2 py-1 xl:px-2.5 xl:py-1.5 bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-[#002B49] border border-blue-200/80 rounded-md text-xs font-semibold shadow-2xs transition-all duration-200 cursor-pointer whitespace-nowrap shrink-0 group"
                 title="SOLNEXA AI技術顧問チャットボットを起動"
               >
                 <Sparkles className="w-3.5 h-3.5 text-blue-600 group-hover:rotate-12 transition-transform duration-200 shrink-0" />
@@ -410,12 +416,12 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
 
               <button
                 onClick={onOpenDesignQuotation || onOpenContact}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 xl:px-4 xl:py-2 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wide rounded-md transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer group whitespace-nowrap shrink-0"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 xl:px-3.5 xl:py-2 bg-[#d81a28] hover:bg-[#b91522] active:scale-98 text-white text-xs sm:text-[13px] font-medium tracking-wide rounded-md transition-all duration-200 shadow-xs hover:shadow-sm cursor-pointer group whitespace-nowrap shrink-0"
                 title="太陽光・蓄電池の設計・概算見積書作成 (無料)"
               >
                 <span className="text-amber-200 font-normal text-[11px] whitespace-nowrap">無料</span>
                 <span className="whitespace-nowrap">設計見積</span>
-                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-1 group-hover:-translate-y-0.5 transition-transform duration-200 shrink-0" />
+                <ArrowUpRight className="w-3.5 h-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform duration-200 shrink-0" />
               </button>
             </div>
 
@@ -474,21 +480,24 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                   animate="visible"
                   exit="exit"
                 >
-                  {/* 1. 私たちについて (BUSINESS) */}
-                  {activeDropdown === 'business' && (
+                  {/* 1. ソリューション (SOLUTIONS) */}
+                  {(activeDropdown === 'solutions' || activeDropdown === 'business') && (
                     <div>
                       <motion.div variants={megaMenuItemVariants} className="flex items-center justify-between pb-4 mb-6 border-b border-slate-100">
                         <div className="flex items-center gap-3">
                           <span className="w-2.5 h-2.5 bg-[#d81a28] rounded-xs" />
                           <span className="text-xs font-bold tracking-widest text-[#002B49] uppercase font-mono">
-                            私たちについて ｜ 3つの事業領域
+                            ソリューション ｜ 3つの主要事業領域
                           </span>
                           <span className="text-xs text-slate-500 hidden sm:inline">
                             太陽光・系統用蓄電池の基本計画から受変電設計、施工支援、運用解析まで、技術で支える3領域
                           </span>
                         </div>
                         <button
-                          onClick={() => handleNavClick('business')}
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            handleNavClick('solutions');
+                          }}
                           className="text-xs font-semibold text-[#002B49] hover:text-[#d81a28] flex items-center gap-1 cursor-pointer transition-colors"
                         >
                           <span>事業内容の詳細を見る</span>
@@ -499,7 +508,10 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <motion.div
                           variants={megaMenuItemVariants}
-                          onClick={() => handleNavClick('business')}
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            handleNavClick('solutions');
+                          }}
                           className="group cursor-pointer space-y-3 p-3.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-slate-50/80 transition-all"
                         >
                           <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-16/10">
@@ -525,7 +537,10 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
 
                         <motion.div
                           variants={megaMenuItemVariants}
-                          onClick={() => handleNavClick('business')}
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            handleNavClick('solutions');
+                          }}
                           className="group cursor-pointer space-y-3 p-3.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-slate-50/80 transition-all"
                         >
                           <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-16/10">
@@ -551,7 +566,10 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
 
                         <motion.div
                           variants={megaMenuItemVariants}
-                          onClick={() => handleNavClick('business')}
+                          onClick={() => {
+                            setActiveDropdown(null);
+                            handleNavClick('solutions');
+                          }}
                           className="group cursor-pointer space-y-3 p-3.5 rounded-lg border border-transparent hover:border-slate-200 hover:bg-slate-50/80 transition-all"
                         >
                           <div className="rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-16/10">
@@ -716,11 +734,32 @@ export const CorporateHeader: React.FC<CorporateHeaderProps> = ({
                         </button>
                       </motion.div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
+                        <motion.div
+                          variants={megaMenuItemVariants}
+                          onClick={() => handleLaunchSpecificTool('snow-weather')}
+                          className="p-3.5 rounded-lg border-2 border-blue-500/40 bg-blue-50/30 hover:border-blue-600 hover:bg-blue-50/70 transition-all cursor-pointer space-y-2 group shadow-2xs"
+                        >
+                          <div className="w-8 h-8 rounded bg-blue-600 text-white flex items-center justify-center group-hover:scale-105 transition-transform shadow-xs">
+                            <CloudSnow className="w-4 h-4" />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <h4 className="text-xs font-bold text-[#002B49] group-hover:text-[#d81a28] transition-colors">
+                              積雪・気象条件チェック
+                            </h4>
+                            <span className="text-[9px] font-bold bg-[#d81a28] text-white px-1 py-0.2 rounded-xs">
+                              NEW
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 line-clamp-2 leading-relaxed">
+                            建設省告示第1455号×自治体公式値×気象庁AMeDASハイブリッド解析。
+                          </p>
+                        </motion.div>
+
                         <motion.div
                           variants={megaMenuItemVariants}
                           onClick={() => handleLaunchSpecificTool('cable-voltage-drop')}
-                          className="p-4 rounded-lg border border-slate-200 hover:border-[#002B49] hover:bg-slate-50/50 transition-all cursor-pointer space-y-2 group"
+                          className="p-3.5 rounded-lg border border-slate-200 hover:border-[#002B49] hover:bg-slate-50/50 transition-all cursor-pointer space-y-2 group"
                         >
                           <div className="w-8 h-8 rounded bg-blue-50 text-[#002B49] flex items-center justify-center group-hover:bg-[#002B49] group-hover:text-white transition-colors">
                             <Calculator className="w-4 h-4" />

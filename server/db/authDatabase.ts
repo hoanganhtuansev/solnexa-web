@@ -13,7 +13,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
-import initSqlJs, { Database, SqlValue } from 'sql.js';
+import initSqlJs from 'sql.js';
+import type { Database, SqlValue } from 'sql.js';
 
 export interface PortalUser {
   id: string;
@@ -83,13 +84,14 @@ export class AuthDatabaseService {
     this.isInitialized = true;
 
     // Run session cleanup periodically (every 10 minutes)
-    setInterval(() => {
+    const cleanupTimer = setInterval(() => {
       try {
         this.cleanupExpiredSessions();
       } catch (err) {
         console.error('[AuthDB] Session cleanup error:', err);
       }
     }, 10 * 60 * 1000);
+    cleanupTimer.unref?.();
   }
 
   private ensureDb(): Database {
@@ -292,7 +294,7 @@ export class AuthDatabaseService {
       }
     }
 
-    // 2. Legacy PBKDF2 fallback verification
+    // 2. Legacy PBKDF2 verification (for existing hashes during migration)
     if (storedHash.startsWith('pbkdf2$')) {
       try {
         const derived = crypto.pbkdf2Sync(password, 'solnexa-admin-salt-999', 100000, 32, 'sha512').toString('hex');
@@ -303,12 +305,6 @@ export class AuthDatabaseService {
           return true;
         }
       } catch {}
-    }
-
-    // 3. Fallback for test passwords in development mode
-    if (process.env.NODE_ENV !== 'production') {
-      if (password === 'SolnexaAdmin#2026' && user.isAdmin) return true;
-      if (password === 'Hoangtuan26' && user.isAdmin) return true;
     }
 
     return false;

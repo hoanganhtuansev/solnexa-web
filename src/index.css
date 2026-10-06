@@ -36,22 +36,30 @@
     letter-spacing: -0.01em;
     line-break: strict;
     word-break: normal;
-    overflow-wrap: normal;
+    overflow-wrap: break-word;
     text-wrap: balance;
   }
 }
 
-/* Japanese strict typographic line-break & semantic chunks */
+/* Japanese & multilingual typographic line-break */
 .jp-heading {
   line-break: strict;
   word-break: normal;
-  overflow-wrap: normal;
+  overflow-wrap: break-word;
   text-wrap: balance;
 }
 
 .jp-chunk {
-  display: inline-block;
-  white-space: nowrap;
+  display: inline;
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+
+@media (min-width: 768px) {
+  .jp-chunk {
+    display: inline-block;
+    white-space: nowrap;
+  }
 }
 
 /* ========================================================================= */
@@ -144,3 +152,34 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* Print optimization for Engineering Reports & Statutory Citations (A4 Output) */
+@media print {
+  aside,
+  header,
+  nav,
+  button:not(.print-include),
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #0f172a !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .avoid-break {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+}
+

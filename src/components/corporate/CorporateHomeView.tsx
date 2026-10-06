@@ -305,7 +305,7 @@ export const CorporateHomeView: React.FC<CorporateHomeViewProps> = ({
                   >
                     {activeSlideData.subhead.split('\n').map((line, idx) => (
                       <span key={idx} className="block">
-                        <span className="jp-chunk">{line}</span>
+                        {line}
                       </span>
                     ))}
                   </motion.p>

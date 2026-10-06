@@ -14,6 +14,7 @@ import { pdfIngestionPipeline } from '../services/pdfIngestionPipeline';
 import { reviewService } from '../services/reviewService';
 import { engineeringCalculationsService } from '../services/engineeringCalculationsService';
 import { aiProviderManager } from '../services/ai/aiProviderManager';
+import { snowEngineService } from '../snowEngine/snowEngineService';
 import { EquipmentCategoryCode, AIProviderId } from '../../src/types';
 
 export const apiRouter = Router();
@@ -208,6 +209,31 @@ apiRouter.get('/health', (req: Request, res: Response) => {
     app: 'SOLNEXA Web',
     timestamp: new Date().toISOString()
   });
+});
+
+// --- BESS Snow & Weather Checker (積雪・気象条件チェック) ---
+apiRouter.get('/snow-weather/check', async (req: Request, res: Response) => {
+  try {
+    const { address, lat, lon, offline } = req.query;
+    const parsedLat = lat !== undefined && lat !== '' ? parseFloat(String(lat)) : undefined;
+    const parsedLon = lon !== undefined && lon !== '' ? parseFloat(String(lon)) : undefined;
+    const offlineOnly = offline === 'true' || offline === '1';
+
+    const result = await snowEngineService.analyzeLocation({
+      address: address ? String(address) : undefined,
+      lat: parsedLat,
+      lon: parsedLon,
+      offlineOnly
+    });
+
+    res.json(result);
+  } catch (err: any) {
+    console.error('[SnowWeather API Error]:', err);
+    res.status(500).json({
+      error: '積雪・気象データの取得に失敗しました',
+      message: err.message || 'サーバー内部エラーが発生しました。'
+    });
+  }
 });
 
 // --- Dashboard & Analytics ---
