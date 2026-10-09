@@ -310,7 +310,9 @@ export const CONDUIT_SPECS_DATABASE: Record<ConduitFamily, ConduitSpec[]> = {
     { code: 'G70', outerDiaMm: 75.2, innerDiaMm: 69.6, innerAreaMm2: 3804, maxArea32Mm2: 1217, maxArea48Mm2: 1826 },
     { code: 'G82', outerDiaMm: 87.9, innerDiaMm: 81.5, innerAreaMm2: 5216, maxArea32Mm2: 1669, maxArea48Mm2: 2504 },
     { code: 'G92', outerDiaMm: 100.7, innerDiaMm: 93.7, innerAreaMm2: 6895, maxArea32Mm2: 2206, maxArea48Mm2: 3309 },
-    { code: 'G104', outerDiaMm: 113.4, innerDiaMm: 106.4, innerAreaMm2: 8891, maxArea32Mm2: 2845, maxArea48Mm2: 4267 }
+    { code: 'G104', outerDiaMm: 113.4, innerDiaMm: 106.4, innerAreaMm2: 8891, maxArea32Mm2: 2845, maxArea48Mm2: 4267, remarks: '大口径立上り防護 (6.6kV CVT 250sq 直線適合)' },
+    { code: 'G125', outerDiaMm: 139.8, innerDiaMm: 130.8, innerAreaMm2: 13437, maxArea32Mm2: 4300, maxArea48Mm2: 6450, remarks: '特大口径立上り防護 (6.6kV CVT 250sq 屈曲部・複合適合)' },
+    { code: 'G150', outerDiaMm: 165.2, innerDiaMm: 155.2, innerAreaMm2: 18918, maxArea32Mm2: 6054, maxArea48Mm2: 9081, remarks: '超大口径防護・特別高圧幹線・多条敷設' }
   ],
   PVC_VE: [
     { code: 'VE14', outerDiaMm: 18.0, innerDiaMm: 14.0, innerAreaMm2: 153, maxArea32Mm2: 49, maxArea48Mm2: 73 },
@@ -338,9 +340,9 @@ export const CONDUIT_SPECS_DATABASE: Record<ConduitFamily, ConduitSpec[]> = {
     { code: 'FEP-50', outerDiaMm: 64.0, innerDiaMm: 50.0, innerAreaMm2: 1963, maxArea32Mm2: 628, maxArea48Mm2: 942, remarks: '低圧主幹・PV' },
     { code: 'FEP-65', outerDiaMm: 86.0, innerDiaMm: 65.0, innerAreaMm2: 3318, maxArea32Mm2: 1062, maxArea48Mm2: 1592, remarks: 'CVT100~150sq' },
     { code: 'FEP-80', outerDiaMm: 103.0, innerDiaMm: 80.0, innerAreaMm2: 5026, maxArea32Mm2: 1608, maxArea48Mm2: 2412, remarks: 'CVT200~250sq' },
-    { code: 'FEP-100', outerDiaMm: 130.0, innerDiaMm: 100.0, innerAreaMm2: 7854, maxArea32Mm2: 2513, maxArea48Mm2: 3770, remarks: '高圧6.6kV CVT' },
-    { code: 'FEP-125', outerDiaMm: 163.0, innerDiaMm: 125.0, innerAreaMm2: 12271, maxArea32Mm2: 3927, maxArea48Mm2: 5890, remarks: '大容量幹線' },
-    { code: 'FEP-150', outerDiaMm: 194.0, innerDiaMm: 150.0, innerAreaMm2: 17671, maxArea32Mm2: 5655, maxArea48Mm2: 8482, remarks: '特別高圧・複合' },
+    { code: 'FEP-100', outerDiaMm: 130.0, innerDiaMm: 100.0, innerAreaMm2: 7854, maxArea32Mm2: 2513, maxArea48Mm2: 3770, remarks: '高圧6.6kV CVT 60~100sq' },
+    { code: 'FEP-125', outerDiaMm: 163.0, innerDiaMm: 125.0, innerAreaMm2: 12271, maxArea32Mm2: 3927, maxArea48Mm2: 5890, remarks: '高圧6.6kV CVT 150~250sq 地中埋設標準' },
+    { code: 'FEP-150', outerDiaMm: 194.0, innerDiaMm: 150.0, innerAreaMm2: 17671, maxArea32Mm2: 5655, maxArea48Mm2: 8482, remarks: '高圧6.6kV CVT 325sq / 特高・多条' },
     { code: 'FEP-200', outerDiaMm: 258.0, innerDiaMm: 200.0, innerAreaMm2: 31415, maxArea32Mm2: 10053, maxArea48Mm2: 15079, remarks: '特高・共同溝' }
   ]
 };
@@ -403,14 +405,14 @@ export const CABLE_DIMENSIONS_LIBRARY: CableDimensionSpec[] = [
   { cableType: '600V_CVT', label: '600V CVT (3心トリプレックス)', sizeSq: '250 sq', outerDiaMm: 59.0, sectionalAreaMm2: 2733.9 },
   { cableType: '600V_CVT', label: '600V CVT (3心トリプレックス)', sizeSq: '325 sq', outerDiaMm: 66.0, sectionalAreaMm2: 3421.1 },
 
-  // 6.6kV CVT (高圧トリプレックスケーブル)
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '38 sq', outerDiaMm: 41.0, sectionalAreaMm2: 1320.2 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '60 sq', outerDiaMm: 45.0, sectionalAreaMm2: 1590.4 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '100 sq', outerDiaMm: 51.0, sectionalAreaMm2: 2042.8 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '150 sq', outerDiaMm: 57.0, sectionalAreaMm2: 2551.7 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '200 sq', outerDiaMm: 64.0, sectionalAreaMm2: 3216.9 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '250 sq', outerDiaMm: 70.0, sectionalAreaMm2: 3848.4 },
-  { cableType: '6.6KV_CVT', label: '6.6kV CVT (高圧トリプレックス)', sizeSq: '325 sq', outerDiaMm: 76.0, sectionalAreaMm2: 4536.4 }
+  // 6.6kV CVT (高圧トリプレックスケーブル / 6600V CVT)
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '38 sq', outerDiaMm: 41.0, sectionalAreaMm2: 1320.2 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '60 sq', outerDiaMm: 45.0, sectionalAreaMm2: 1590.4 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '100 sq', outerDiaMm: 51.0, sectionalAreaMm2: 2042.8 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '150 sq', outerDiaMm: 57.0, sectionalAreaMm2: 2551.7 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '200 sq', outerDiaMm: 64.0, sectionalAreaMm2: 3216.9 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '250 sq', outerDiaMm: 70.0, sectionalAreaMm2: 3848.4 },
+  { cableType: '6.6KV_CVT', label: '6600V / 6.6kV CVT (高圧トリプレックス)', sizeSq: '325 sq', outerDiaMm: 76.0, sectionalAreaMm2: 4536.4 }
 ];
 
 export interface ConduitEvaluationResult {
@@ -469,7 +471,8 @@ export function calculateConduitSizing(
 
   const comparisonList: ConduitEvaluationResult[] = specsList.map(conduit => {
     const occupancyPercent = Number(((totalCableAreaMm2 / conduit.innerAreaMm2) * 100).toFixed(1));
-    const isCompliant = occupancyPercent <= occupancyLimitPercent;
+    const physicallyFits = conduit.innerDiaMm > cableOuterDiaMm;
+    const isCompliant = occupancyPercent <= occupancyLimitPercent && physicallyFits;
     const allowedArea = (conduit.innerAreaMm2 * occupancyLimitPercent) / 100;
     const remainingAreaMm2 = Number((allowedArea - totalCableAreaMm2).toFixed(1));
 
@@ -532,6 +535,7 @@ export interface MultiCableConduitResult {
   cableList: MultiCableItemOutput[];
   totalCablesCount: number;
   totalCablesAreaMm2: number;
+  totalCableAreaMm2: number;
   occupancyLimitPercent: 32 | 48;
   limitReason: string;
   isMultiSize: boolean;
@@ -612,10 +616,12 @@ export function calculateMultiCableConduitSizing(
   else bundlingCurrentReductionFactor = 0.43;
 
   const specsList = CONDUIT_SPECS_DATABASE[conduitFamily] || CONDUIT_SPECS_DATABASE.STEEL_THICK_G;
+  const maxCableOuterDia = cables.length > 0 ? Math.max(...cables.map(c => c.outerDiaMm)) : 0;
 
   const comparisonList: ConduitEvaluationResult[] = specsList.map(conduit => {
     const occupancyPercent = conduit.innerAreaMm2 > 0 ? Number(((totalCablesAreaMm2 / conduit.innerAreaMm2) * 100).toFixed(1)) : 0;
-    const isCompliant = occupancyPercent <= occupancyLimitPercent;
+    const physicallyFits = conduit.innerDiaMm > maxCableOuterDia;
+    const isCompliant = occupancyPercent <= occupancyLimitPercent && physicallyFits;
     const allowedArea = (conduit.innerAreaMm2 * occupancyLimitPercent) / 100;
     const remainingAreaMm2 = Number((allowedArea - totalCablesAreaMm2).toFixed(1));
 
@@ -646,6 +652,7 @@ export function calculateMultiCableConduitSizing(
     cableList: cableOutputs,
     totalCablesCount,
     totalCablesAreaMm2,
+    totalCableAreaMm2: totalCablesAreaMm2,
     occupancyLimitPercent,
     limitReason,
     isMultiSize,

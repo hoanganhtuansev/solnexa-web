@@ -12,7 +12,14 @@ import {
   HelpCircle,
   FileSpreadsheet,
   Check,
-  RefreshCw
+  RefreshCw,
+  Plus,
+  Trash2,
+  Sliders,
+  AlertCircle,
+  ExternalLink,
+  ShieldCheck,
+  Zap
 } from 'lucide-react';
 import {
   ConduitFamily,
@@ -23,7 +30,6 @@ import {
   calculateMultiCableConduitSizing,
   MultiCableItemInput
 } from '../utils/japaneseStandards';
-import { Plus, Trash2, Sliders, AlertCircle } from 'lucide-react';
 
 interface ConduitSizingCalculatorProps {
   onSaveToProject?: (calcData: any) => void;
@@ -35,26 +41,25 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
   onOpenProject
 }) => {
   // Mode: Single Cable Sizing vs Multi-Cable Combined Piping (gk-haikan-2)
-  const [calcMode, setCalcMode] = useState<'single' | 'multi'>('multi');
+  const [calcMode, setCalcMode] = useState<'single' | 'multi'>('single');
 
-  // Conduit Family State
-  const [selectedFamily, setSelectedFamily] = useState<ConduitFamily>('STEEL_THICK_G');
+  // Conduit Family State - default to FEP管 (standard for high voltage & underground) or STEEL_THICK_G
+  const [selectedFamily, setSelectedFamily] = useState<ConduitFamily>('FEP_UNDERGROUND');
 
-  // Single Cable Selection State
-  const [cableCategory, setCableCategory] = useState<'SOLAR_DC' | '600V_CV_1C' | '600V_CVT' | 'IV' | '6.6KV_CVT'>('SOLAR_DC');
-  const [selectedCableIndex, setSelectedCableIndex] = useState<number>(1); // e.g. 6mm²
-  const [cableCount, setCableCount] = useState<number>(4);
+  // Single Cable Selection State - defaulted to 6600V CVT 250sq per user requirements
+  const [cableCategory, setCableCategory] = useState<'SOLAR_DC' | '600V_CV_1C' | '600V_CVT' | 'IV' | '6.6KV_CVT'>('6.6KV_CVT');
+  const [selectedCableSize, setSelectedCableSize] = useState<string>('250 sq');
+  const [cableCount, setCableCount] = useState<number>(1);
   const [customDiaActive, setCustomDiaActive] = useState<boolean>(false);
-  const [customOuterDiaMm, setCustomOuterDiaMm] = useState<number>(6.2);
+  const [customOuterDiaMm, setCustomOuterDiaMm] = useState<number>(70.0);
 
   // Multi-Cable Combined State (isijp gk-haikan-2)
   const [multiCables, setMultiCables] = useState<MultiCableItemInput[]>([
-    { id: '1', name: 'PV String DC (+/-)', category: 'SOLAR_DC', sizeSq: '6 mm²', outerDiaMm: 6.2, count: 4 },
-    { id: '2', name: 'Grounding Conductor (アース接地線)', category: 'IV', sizeSq: '5.5 sq', outerDiaMm: 5.0, count: 1 }
+    { id: '1', name: '高圧受電 6600V CVT 250sq', category: '6.6KV_CVT', sizeSq: '250 sq', outerDiaMm: 70.0, count: 1 }
   ]);
 
   // Route & Installation conditions (isijp gk-haikan-2)
-  const [routeLengthM, setRouteLengthM] = useState<number>(25);
+  const [routeLengthM, setRouteLengthM] = useState<number>(30);
   const [bendsCount90Deg, setBendsCount90Deg] = useState<number>(1);
   const [runCondition, setRunCondition] = useState<'SAME_SIZE_STRAIGHT' | 'CURVED_OR_DIFFERENT_SIZES'>('CURVED_OR_DIFFERENT_SIZES');
 
@@ -71,10 +76,11 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
   }, [cableCategory]);
 
   const activeCable = useMemo(() => {
-    return availableCables[selectedCableIndex] || availableCables[0];
-  }, [availableCables, selectedCableIndex]);
+    const found = availableCables.find(c => c.sizeSq === selectedCableSize);
+    return found || availableCables[0] || CABLE_DIMENSIONS_LIBRARY[0];
+  }, [availableCables, selectedCableSize]);
 
-  const effectiveOuterDiaMm = customDiaActive ? customOuterDiaMm : (activeCable?.outerDiaMm || 6.2);
+  const effectiveOuterDiaMm = customDiaActive ? customOuterDiaMm : (activeCable?.outerDiaMm || 70.0);
 
   // Single Cable Calculation Output
   const singleCalcResult = useMemo(() => {
@@ -111,10 +117,61 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
     comparisonList: multiCalcResult.comparisonList
   } : singleCalcResult;
 
+  // Dedicated Protection Conduit Sizing Comparison (G管 vs FEP管)
+  const gPipeResult = useMemo(() => {
+    return isMulti
+      ? calculateMultiCableConduitSizing('STEEL_THICK_G', multiCables, bendsCount90Deg > 0, routeLengthM, bendsCount90Deg)
+      : calculateConduitSizing('STEEL_THICK_G', effectiveOuterDiaMm, cableCount, runCondition);
+  }, [isMulti, multiCables, effectiveOuterDiaMm, cableCount, runCondition, bendsCount90Deg, routeLengthM]);
+
+  const fepPipeResult = useMemo(() => {
+    return isMulti
+      ? calculateMultiCableConduitSizing('FEP_UNDERGROUND', multiCables, bendsCount90Deg > 0, routeLengthM, bendsCount90Deg)
+      : calculateConduitSizing('FEP_UNDERGROUND', effectiveOuterDiaMm, cableCount, runCondition);
+  }, [isMulti, multiCables, effectiveOuterDiaMm, cableCount, runCondition, bendsCount90Deg, routeLengthM]);
+
   // Preset Applicator
   const applyPreset = (presetName: string) => {
-    if (presetName === 'pv-dc-earth') {
+    if (presetName === 'mv-6.6kv-250-fep') {
       setSelectedFamily('FEP_UNDERGROUND');
+      setCableCategory('6.6KV_CVT');
+      setSelectedCableSize('250 sq');
+      setCableCount(1);
+      setMultiCables([
+        { id: '1', name: '高圧受電 6600V CVT 250sq', category: '6.6KV_CVT', sizeSq: '250 sq', outerDiaMm: 70.0, count: 1 }
+      ]);
+      setRouteLengthM(45);
+      setBendsCount90Deg(2);
+      showToast('Đã chọn: 6600V CVT 250sq 1条 (FEP管 FEP-125 地中埋設)');
+    } else if (presetName === 'mv-6.6kv-250-g') {
+      setSelectedFamily('STEEL_THICK_G');
+      setCableCategory('6.6KV_CVT');
+      setSelectedCableSize('250 sq');
+      setCableCount(1);
+      setMultiCables([
+        { id: '1', name: '高圧受電 6600V CVT 250sq', category: '6.6KV_CVT', sizeSq: '250 sq', outerDiaMm: 70.0, count: 1 }
+      ]);
+      setRouteLengthM(15);
+      setBendsCount90Deg(1);
+      showToast('Đã chọn: 6600V CVT 250sq 1条 (厚鋼G管 G104/G125 立上り防護)');
+    } else if (presetName === 'inverter-ac-earth') {
+      setSelectedFamily('STEEL_THICK_G');
+      setCableCategory('600V_CVT');
+      setSelectedCableSize('100 sq');
+      setCableCount(1);
+      setMultiCables([
+        { id: '1', name: 'Inverter AC 主幹 (CVT)', category: '600V_CVT', sizeSq: '100 sq', outerDiaMm: 39.0, count: 1 },
+        { id: '2', name: 'Grounding IV (接地線)', category: 'IV', sizeSq: '14 sq', outerDiaMm: 7.6, count: 1 }
+      ]);
+      setRouteLengthM(18);
+      setBendsCount90Deg(1);
+      setCalcMode('multi');
+      showToast('Đã chọn: パワコンAC主幹 CVT 100sq + 接地線 (厚鋼G管)');
+    } else if (presetName === 'pv-dc-earth') {
+      setSelectedFamily('FEP_UNDERGROUND');
+      setCableCategory('SOLAR_DC');
+      setSelectedCableSize('6 mm²');
+      setCableCount(6);
       setMultiCables([
         { id: '1', name: 'PV String DC (+/-)', category: 'SOLAR_DC', sizeSq: '6 mm²', outerDiaMm: 6.2, count: 6 },
         { id: '2', name: 'Earth IV (接地線)', category: 'IV', sizeSq: '5.5 sq', outerDiaMm: 5.0, count: 1 }
@@ -122,28 +179,12 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
       setRouteLengthM(35);
       setBendsCount90Deg(2);
       setCalcMode('multi');
-      showToast('Loaded Preset: 太陽光DC 6条 + アース線 (FEP管地中埋設)');
-    } else if (presetName === 'inverter-ac-earth') {
-      setSelectedFamily('STEEL_THICK_G');
-      setMultiCables([
-        { id: '1', name: 'Inverter AC (CVT)', category: '600V_CVT', sizeSq: '100 sq', outerDiaMm: 39.0, count: 1 },
-        { id: '2', name: 'Grounding IV (接地線)', category: 'IV', sizeSq: '14 sq', outerDiaMm: 7.6, count: 1 }
-      ]);
-      setRouteLengthM(18);
-      setBendsCount90Deg(1);
-      setCalcMode('multi');
-      showToast('Loaded Preset: パワコンAC主幹 CVT 100sq + 接地線 (厚鋼G管)');
-    } else if (presetName === 'mv-6.6kv') {
-      setSelectedFamily('FEP_UNDERGROUND');
-      setMultiCables([
-        { id: '1', name: '高圧受電 6.6kV CVT', category: '6.6KV_CVT', sizeSq: '100 sq', outerDiaMm: 51.0, count: 1 }
-      ]);
-      setRouteLengthM(45);
-      setBendsCount90Deg(3);
-      setCalcMode('multi');
-      showToast('Loaded Preset: 高圧6.6kV CVT 100sq (FEP管長距離地中)');
+      showToast('Đã chọn: 太陽光DC 6条 + アース線 (FEP管地中埋設)');
     } else if (presetName === 'branch-iv') {
       setSelectedFamily('STEEL_THREADLESS_E');
+      setCableCategory('IV');
+      setSelectedCableSize('2.0 mm');
+      setCableCount(4);
       setMultiCables([
         { id: '1', name: '照明・コンセント幹線 IV', category: 'IV', sizeSq: '2.0 mm', outerDiaMm: 3.6, count: 4 },
         { id: '2', name: '接地線 IV', category: 'IV', sizeSq: '1.6 mm', outerDiaMm: 3.2, count: 1 }
@@ -151,19 +192,20 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
       setRouteLengthM(15);
       setBendsCount90Deg(1);
       setCalcMode('multi');
-      showToast('Loaded Preset: 屋内露出分岐 IV線 5条 (ねじなしE管)');
+      showToast('Đã chọn: 屋内露出分岐 IV線 5条 (ねじなしE管)');
     }
   };
 
   const handleAddMultiCable = () => {
     const newId = String(Date.now());
-    const defaultCable = availableCables[0] || CABLE_DIMENSIONS_LIBRARY[0];
+    const defaultCable = availableCables.find(c => c.sizeSq === selectedCableSize) || availableCables[0] || CABLE_DIMENSIONS_LIBRARY[0];
+    const catLabel = defaultCable.cableType === '6.6KV_CVT' ? '6600V CVT' : defaultCable.cableType === '600V_CVT' ? '600V CVT' : defaultCable.cableType === '600V_CV_1C' ? '600V CV 1心' : defaultCable.cableType === 'IV' ? 'IV (接地線)' : 'PV DC';
     setMultiCables(prev => [
       ...prev,
       {
         id: newId,
-        name: `Cable #${prev.length + 1} (${defaultCable.sizeSq})`,
-        category: cableCategory,
+        name: `${catLabel} ${defaultCable.sizeSq}`,
+        category: defaultCable.cableType,
         sizeSq: defaultCable.sizeSq,
         outerDiaMm: defaultCable.outerDiaMm,
         count: 1
@@ -173,7 +215,7 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
 
   const handleRemoveMultiCable = (id: string) => {
     if (multiCables.length <= 1) {
-      showToast('少なくとも1本の電線が必要です');
+      showToast('Ít nhất phải có 1 tuyến cáp để tính toán');
       return;
     }
     setMultiCables(prev => prev.filter(c => c.id !== id));
@@ -184,50 +226,49 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
       jp: '厚鋼電線管 (G管)',
       en: 'Thick Steel Conduit (G)',
       standard: 'JIS C 8305',
-      desc: '耐衝撃性・防爆・重防食。屋外プラント・受変電設備・高圧配線に標準採用。'
-    },
-    STEEL_THREADLESS_E: {
-      jp: 'ねじなし電線管 (E管)',
-      en: 'Threadless Steel Conduit (E)',
-      standard: 'JIS C 8305',
-      desc: 'ねじ切り不要の差込式。屋内露出・天井内配線の主流。'
-    },
-    STEEL_THIN_C: {
-      jp: '薄鋼電線管 (C管)',
-      en: 'Thin Steel Conduit (C)',
-      standard: 'JIS C 8305',
-      desc: '一般ねじ付き鋼製管。軽量で屋内露出配管に広く使用。'
-    },
-    PVC_VE: {
-      jp: '硬質ビニル電線管 (VE管)',
-      en: 'Rigid PVC Conduit (VE)',
-      standard: 'JIS C 8430',
-      desc: '耐腐食性・絶縁性。化学環境、露出湿気場所、屋外露出に最適。'
-    },
-    FLEXIBLE_PF_CD: {
-      jp: '可とう電線管 (PF管 / CD管)',
-      en: 'Flexible Conduit (PF/CD)',
-      standard: 'JIS C 8411',
-      desc: '可とう性抜群。PF管は屋外・隠ぺい配線、CD管はコンクリート埋設専用。'
+      desc: 'Thép mạ kẽm dày chống va đập, chống cháy nổ. Bắt buộc cho đoạn trồi lên mặt đất (立上り防護) vào trạm biến áp, Cubicle, cột điện.'
     },
     FEP_UNDERGROUND: {
       jp: '波付硬質合成樹脂管 (FEP管)',
       en: 'Corrugated Underground Pipe (FEP)',
       standard: 'JIS C 3653',
-      desc: '太陽光発電・BESS・特別高圧の地中埋設幹線配管のデファクトスタンダード。'
+      desc: 'Ống nhựa xoắn chịu lực chôn ngầm. Tiêu chuẩn vàng cho tuyến cáp ngầm trung thế 6.6kV/22kV, uốn cong linh hoạt, không rỉ sét.'
+    },
+    STEEL_THREADLESS_E: {
+      jp: 'ねじなし電線管 (E管)',
+      en: 'Threadless Steel Conduit (E)',
+      standard: 'JIS C 8305',
+      desc: 'Ống thép trơn không ren lắp ghép nhanh. Đi nổi trong nhà xưởng, trần kỹ thuật, phòng điện.'
+    },
+    STEEL_THIN_C: {
+      jp: '薄鋼電線管 (C管)',
+      en: 'Thin Steel Conduit (C)',
+      standard: 'JIS C 8305',
+      desc: 'Ống thép mỏng có ren. Phổ biến cho đường dây chiếu sáng và phân phối trong nhà.'
+    },
+    PVC_VE: {
+      jp: '硬質ビニル電線管 (VE管)',
+      en: 'Rigid PVC Conduit (VE)',
+      standard: 'JIS C 8430',
+      desc: 'Ống nhựa PVC cứng chống ăn mòn hóa chất, môi trường ẩm ướt, muối biển.'
+    },
+    FLEXIBLE_PF_CD: {
+      jp: '可とう電線管 (PF管 / CD管)',
+      en: 'Flexible Conduit (PF/CD)',
+      standard: 'JIS C 8411',
+      desc: 'Ống mềm gân sóng. PF chống cháy dùng nổi ngoài trời/âm tường, CD chôn trong bê tông.'
     }
   };
 
   // Export CSV Schedule
   const handleExportCsv = () => {
-    let csv = `ISIJ-JP Standards - Conduit Sizing & Occupancy Schedule\n`;
+    let csv = `SOLNEXA Engineering - Conduit Sizing & Protection Schedule\n`;
     csv += `Standard,JIS C 8305 / JIS C 8430 / JIS C 3653 / JEAC 8001 (内線規程)\n`;
     csv += `Selected Pipe Family,${familyLabels[selectedFamily].jp} (${familyLabels[selectedFamily].standard})\n`;
-    csv += `Cable Type,${activeCable?.label || 'Custom Cable'},Size,${activeCable?.sizeSq || 'Custom'}\n`;
-    csv += `Cable Outer Diameter,${effectiveOuterDiaMm} mm,Cables Count,${cableCount} 本\n`;
-    csv += `Single Cable Area,${calculationResult.singleCableAreaMm2} mm²,Total Cable Area,${calculationResult.totalCableAreaMm2} mm²\n`;
+    csv += `Cable Type,${isMulti ? 'Multi-Cable Mixed' : (activeCable?.label || '6600V CVT 250sq')},Size,${isMulti ? 'Mixed' : selectedCableSize}\n`;
+    csv += `Cable Outer Diameter,${effectiveOuterDiaMm} mm,Cables Count,${isMulti ? multiCalcResult.totalCablesCount : cableCount} 本\n`;
+    csv += `Total Cable Area,${calculationResult.totalCableAreaMm2} mm²\n`;
     csv += `Occupancy Limit,${calculationResult.occupancyLimitPercent}%,Condition,${calculationResult.limitReason}\n`;
-    csv += `Bundling Derating Factor,${calculationResult.bundlingCurrentReductionFactor} (電流減少係数)\n`;
     csv += `Recommended Pipe,${calculationResult.recommendedConduit.code},Actual Occupancy,${calculationResult.actualOccupancyPercent}%\n\n`;
 
     csv += `Conduit Code,Outer Dia (mm),Inner Dia (mm),Inner Area (mm²),Allowable Area (mm²),Actual Occupancy (%),Remaining Area (mm²),Status\n`;
@@ -243,7 +284,7 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
     link.download = `SOLNEXA_Conduit_Sizing_${calculationResult.recommendedConduit.code}_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     URL.revokeObjectURL(url);
-    showToast('Conduit sizing CSV schedule exported successfully.');
+    showToast('Đã xuất file bảng kích thước ống bảo vệ CSV thành công.');
   };
 
   return (
@@ -266,45 +307,56 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
             <div>
               <div className="flex items-center space-x-2 flex-wrap gap-y-1">
                 <h2 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight">
-                  電線管サイズ選定・配管占有率計算 (Conduit Sizing &amp; Occupancy)
+                  Tính toán Chọn Ống Bảo Vệ &amp; Độ Chiếm Dụng Cáp (Conduit Sizing &amp; Occupancy)
                 </h2>
                 <span className="text-[11px] font-bold text-indigo-700 bg-indigo-50 border border-indigo-200 px-2 py-0.5 rounded-md">
-                  内線規程 JEAC 8001 / isijp.com
+                  JEAC 8001 / 内線規程
                 </span>
                 <span className="text-[10px] font-mono text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-md">
-                  JIS C 8305 / 8430 / 3653
+                  JIS C 3653 (FEP) / JIS C 8305 (G管)
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-1 max-w-3xl leading-relaxed">
-                ケーブル外径と電線管の内断面積から、内線規程に準拠した許容占有率（同一太さ: 48%以下、屈曲部・異線混在: 32%以下）および多条敷設の電流減少係数を自動算定します。
+                Tự động tính toán đường kính ngoài cáp, diện tích tiết diện và đề xuất ống bảo vệ hợp chuẩn: 
+                <strong> Ống nhựa xoắn FEP (FEP管)</strong> cho tuyến chôn ngầm dưới đất hoặc 
+                <strong> Ống thép dày G (厚鋼G管)</strong> cho đoạn trồi lên bảo vệ trạm biến áp/Cubicle (hệ số chiếm dụng: 48% tuyến thẳng, 32% đoạn uốn cong).
               </p>
             </div>
           </div>
 
           <div className="flex items-center space-x-2 shrink-0 self-start lg:self-auto">
             {/* Quick Engineering Presets */}
-            <div className="hidden sm:flex items-center space-x-1.5 bg-slate-100 p-1 rounded-xl text-xs">
-              <span className="text-[10px] font-bold text-slate-500 px-2">Presets:</span>
+            <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
+              <span className="text-[10px] font-bold text-slate-500 px-1">Presets Nhanh:</span>
               <button
                 type="button"
-                onClick={() => applyPreset('pv-dc-earth')}
-                className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-800 rounded-lg font-medium shadow-xs text-[11px]"
+                onClick={() => applyPreset('mv-6.6kv-250-fep')}
+                className="px-2.5 py-1 bg-white hover:bg-slate-50 text-rose-700 hover:text-rose-900 border border-rose-300 rounded-lg font-bold shadow-xs text-[11px] flex items-center gap-1 transition-all"
+                title="Cáp cao thế 6600V CVT 250sq đi ngầm trong ống FEP-125"
               >
-                PV DC+アース
+                <span>⚡ 6600V CVT 250sq (FEP)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => applyPreset('mv-6.6kv-250-g')}
+                className="px-2.5 py-1 bg-white hover:bg-slate-50 text-indigo-700 hover:text-indigo-900 border border-indigo-300 rounded-lg font-bold shadow-xs text-[11px] flex items-center gap-1 transition-all"
+                title="Cáp cao thế 6600V CVT 250sq đoạn trồi lên dùng ống thép dày G104/G125"
+              >
+                <span>🛡️ 6600V CVT 250sq (G管)</span>
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('inverter-ac-earth')}
                 className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-800 rounded-lg font-medium shadow-xs text-[11px]"
               >
-                AC主幹 CVT+接地
+                AC CVT 100sq + E
               </button>
               <button
                 type="button"
-                onClick={() => applyPreset('mv-6.6kv')}
+                onClick={() => applyPreset('pv-dc-earth')}
                 className="px-2 py-1 bg-white hover:bg-slate-50 text-slate-800 rounded-lg font-medium shadow-xs text-[11px]"
               >
-                6.6kV CVT
+                PV DC + Tiếp địa
               </button>
             </div>
 
@@ -313,66 +365,74 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
               className="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition-all shadow-xs flex items-center space-x-1.5 cursor-pointer active:scale-98"
             >
               <Download className="w-3.5 h-3.5" />
-              <span>Export CSV</span>
+              <span>Xuất CSV</span>
             </button>
           </div>
         </div>
 
-        {/* Calculation Mode Toggle (Single Cable vs Multi-Cable Combined) */}
-        <div className="flex items-center space-x-2 pt-3 border-t border-slate-100 mt-3">
-          <span className="text-xs font-bold text-slate-600">検討モード (Calculation Mode):</span>
-          <div className="flex items-center bg-slate-100 p-1 rounded-xl">
-            <button
-              type="button"
-              onClick={() => setCalcMode('multi')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                calcMode === 'multi'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              複数電線・多条混在配管 (isijp gk-haikan-2 準拠)
-            </button>
+        {/* Mode Selector Tabs (Single Cable vs Multi Cable) */}
+        <div className="flex items-center justify-between border-t border-slate-100 pt-3 mt-4">
+          <div className="flex items-center space-x-1 bg-slate-100/90 p-1 rounded-xl text-xs font-bold">
             <button
               type="button"
               onClick={() => setCalcMode('single')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-3 py-1.5 rounded-lg transition-all ${
                 calcMode === 'single'
                   ? 'bg-blue-600 text-white shadow-xs'
                   : 'text-slate-600 hover:text-slate-900'
               }`}
             >
-              単一電線サイズ (gk-haikan-1)
+              ⚡ Đơn Tuyến Cáp (Single Cable)
             </button>
+            <button
+              type="button"
+              onClick={() => setCalcMode('multi')}
+              className={`px-3 py-1.5 rounded-lg transition-all ${
+                calcMode === 'multi'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              📑 Đa Cáp / Hỗn Hợp (Multi-Cable Builder)
+            </button>
+          </div>
+
+          <div className="text-[11px] text-slate-500 font-medium hidden md:block">
+            {calcMode === 'single'
+              ? 'Tính toán chuyên sâu cho 1 loại cáp chính (VD: 6600V CVT 250sq)'
+              : 'Tính toán hỗn hợp nhiều loại cáp trong cùng 1 ống (Cáp động lực + Cáp tiếp địa)'}
           </div>
         </div>
 
         {/* 6 Conduit Family Switcher Tabs */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-4 mt-4 border-t border-slate-100">
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 pt-3 mt-3 border-t border-slate-100">
           {(
             [
+              'FEP_UNDERGROUND',
               'STEEL_THICK_G',
               'STEEL_THREADLESS_E',
               'STEEL_THIN_C',
               'PVC_VE',
-              'FLEXIBLE_PF_CD',
-              'FEP_UNDERGROUND'
+              'FLEXIBLE_PF_CD'
             ] as ConduitFamily[]
           ).map(f => {
             const isSelected = selectedFamily === f;
             const meta = familyLabels[f];
+            const isHighlight = f === 'FEP_UNDERGROUND' || f === 'STEEL_THICK_G';
             return (
               <button
                 key={f}
                 onClick={() => setSelectedFamily(f)}
                 className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
                   isSelected
-                    ? 'bg-blue-50/80 border-blue-500 ring-2 ring-blue-500/20 shadow-xs'
+                    ? 'bg-blue-50/90 border-blue-600 ring-2 ring-blue-500/25 shadow-xs'
+                    : isHighlight
+                    ? 'bg-amber-50/30 border-amber-200/80 hover:bg-white hover:border-amber-400'
                     : 'bg-slate-50/70 border-slate-200 hover:bg-white hover:border-slate-300'
                 }`}
               >
                 <div className="flex items-center justify-between">
-                  <span className={`text-[10px] font-mono font-bold ${isSelected ? 'text-blue-700' : 'text-slate-400'}`}>
+                  <span className={`text-[10px] font-mono font-bold ${isSelected ? 'text-blue-700' : isHighlight ? 'text-amber-800' : 'text-slate-500'}`}>
                     {meta.standard}
                   </span>
                   {isSelected && <span className="w-1.5 h-1.5 rounded-full bg-blue-600 inline-block" />}
@@ -402,10 +462,10 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                 </span>
                 <div>
                   <h3 className="text-xs font-bold text-slate-900">
-                    {calcMode === 'multi' ? 'Multi-Cable List / 収容電線一覧' : 'Cable Specifications / 収容電線'}
+                    {calcMode === 'multi' ? 'Danh Sách Cáp Hỗn Hợp (Multi-Cable List)' : 'Thông Số Tuyến Cáp (Cable Specification)'}
                   </h3>
                   <p className="text-[10px] text-slate-400">
-                    {calcMode === 'multi' ? 'isijp gk-haikan-2 異線・多条混在計算' : '単一電線・仕上外径'}
+                    {calcMode === 'multi' ? 'Tính toán luồn nhiều sợi/nhiều cỡ dây trong 1 ống' : 'Chọn chủng loại cáp, kích cỡ ruột dẫn & số lượng sợi'}
                   </p>
                 </div>
               </div>
@@ -417,13 +477,241 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                   className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg text-xs font-bold transition-colors flex items-center space-x-1"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <span>+ 電線追加</span>
+                  <span>+ Thêm Dây</span>
                 </button>
               )}
             </div>
 
-            {/* MULTI-CABLE BUILDER VIEW */}
-            {calcMode === 'multi' ? (
+            {/* SINGLE CABLE VIEW */}
+            {calcMode === 'single' ? (
+              <div className="space-y-4 text-xs">
+                {/* 1. Category Selector */}
+                <div>
+                  <label className="text-[11px] font-bold text-slate-700 block mb-1.5">
+                    1. Chủng Loại Cáp (Cable Family / 種別):
+                  </label>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {[
+                      { id: '6.6KV_CVT', label: '⚡ 高圧 6600V CVT (Trọng điểm)', tag: '6.6kV CVT' },
+                      { id: '600V_CVT', label: '⚡ 低圧 600V CVT (3心)', tag: '600V CVT' },
+                      { id: '600V_CV_1C', label: '⚡ 600V CV 1心', tag: '600V CV 1C' },
+                      { id: 'IV', label: '🌱 IV (Dây tiếp địa / ビニル線)', tag: 'IV' },
+                      { id: 'SOLAR_DC', label: '☀️ Solar PV DC (Cáp mặt trời)', tag: 'PV DC' }
+                    ].map(cat => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        onClick={() => {
+                          setCableCategory(cat.id as any);
+                          // Default to 250 sq if 6.6KV_CVT or 600V_CVT
+                          if (cat.id === '6.6KV_CVT') {
+                            setSelectedCableSize('250 sq');
+                          } else if (cat.id === '600V_CVT') {
+                            setSelectedCableSize('250 sq');
+                          } else if (cat.id === 'IV') {
+                            setSelectedCableSize('14 sq');
+                          } else if (cat.id === 'SOLAR_DC') {
+                            setSelectedCableSize('6 mm²');
+                          }
+                          setCustomDiaActive(false);
+                        }}
+                        className={`px-2.5 py-2 rounded-xl text-[11px] font-bold text-left transition-all truncate border ${
+                          cableCategory === cat.id
+                            ? cat.id === '6.6KV_CVT'
+                              ? 'bg-rose-600 text-white border-rose-600 shadow-xs ring-2 ring-rose-500/20'
+                              : 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                        }`}
+                      >
+                        {cat.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Conductor Size Selector */}
+                {!customDiaActive && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <label className="text-[11px] font-bold text-slate-700">
+                        2. Tiết Diện Dây Dẫn (Conductor Size / sq):
+                      </label>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {availableCables.length} cỡ dây chuẩn JIS
+                      </span>
+                    </div>
+
+                    {/* Quick Size Pills for 6.6kV CVT */}
+                    {cableCategory === '6.6KV_CVT' && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {['38 sq', '60 sq', '100 sq', '150 sq', '200 sq', '250 sq', '325 sq'].map(s => {
+                          const isPicked = selectedCableSize === s;
+                          const isSpecial = s === '250 sq';
+                          return (
+                            <button
+                              key={s}
+                              type="button"
+                              onClick={() => setSelectedCableSize(s)}
+                              className={`px-2.5 py-1 rounded-lg text-xs font-mono font-bold transition-all border ${
+                                isPicked
+                                  ? 'bg-rose-600 text-white border-rose-600 shadow-xs scale-102'
+                                  : isSpecial
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100 font-black'
+                                  : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                              }`}
+                            >
+                              {s} {isSpecial && '★'}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+
+                    <select
+                      value={selectedCableSize}
+                      onChange={e => setSelectedCableSize(e.target.value)}
+                      className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-hidden focus:border-blue-500 focus:bg-white"
+                    >
+                      {availableCables.map((c, idx) => (
+                        <option key={idx} value={c.sizeSq}>
+                          {c.sizeSq} — 仕上外径: φ{c.outerDiaMm} mm (単線断面積: {c.sectionalAreaMm2} mm²)
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Selected Cable Status Card */}
+                <div className={`p-3 rounded-xl border space-y-1.5 ${
+                  cableCategory === '6.6KV_CVT'
+                    ? 'bg-rose-50/70 border-rose-200 text-rose-950'
+                    : 'bg-blue-50/70 border-blue-200 text-blue-950'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold tracking-wider opacity-75">
+                      Thông Số Dây Đang Chọn (Active Spec)
+                    </span>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-white border border-rose-200 text-rose-700">
+                      {cableCategory === '6.6KV_CVT' ? '⚡ 6600V CVT' : cableCategory === '600V_CVT' ? '600V CVT' : 'JIS C 3605'}
+                    </span>
+                  </div>
+                  <div className="text-sm font-bold text-slate-900 flex items-center gap-1.5">
+                    <span>{cableCategory === '6.6KV_CVT' ? '6600V CVT' : cableCategory === '600V_CVT' ? '600V CVT' : cableCategory}</span>
+                    <span className="font-mono text-blue-700 bg-white px-1.5 py-0.5 rounded border border-slate-200">
+                      {selectedCableSize}
+                    </span>
+                    <span className="text-xs text-slate-500 font-normal">
+                      ({cableCategory === '6.6KV_CVT' ? '高圧3心トリプレックス' : '架橋PE絶縁'})
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-[11px] pt-1 border-t border-rose-200/50">
+                    <div>
+                      <span className="text-slate-500">Đường kính ngoài:</span>{' '}
+                      <strong className="font-mono text-slate-900 font-bold">φ{effectiveOuterDiaMm} mm</strong>
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Diện tích 1 sợi:</span>{' '}
+                      <strong className="font-mono text-slate-900 font-bold">
+                        {((Math.PI * Math.pow(effectiveOuterDiaMm, 2)) / 4).toFixed(1)} mm²
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Number of Cables in Conduit (条数・本数) */}
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-[11px] font-bold text-slate-700">
+                      3. Số Lượng Dây Luồn Trong Ống (条数 / 本数):
+                    </label>
+                    <span className="font-mono font-black text-sm text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
+                      {cableCount} 条 (本)
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-4 gap-1.5 mb-2">
+                    {[1, 2, 3, 4].map(num => (
+                      <button
+                        key={num}
+                        type="button"
+                        onClick={() => setCableCount(num)}
+                        className={`py-1.5 rounded-lg text-xs font-mono font-bold border transition-all ${
+                          cableCount === num
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                        }`}
+                      >
+                        {num}条 {num === 1 ? '(1 hồi)' : num === 2 ? '(2 hồi)' : ''}
+                      </button>
+                    ))}
+                  </div>
+
+                  <input
+                    type="range"
+                    min={1}
+                    max={12}
+                    value={cableCount}
+                    onChange={e => setCableCount(parseInt(e.target.value) || 1)}
+                    className="w-full accent-blue-600"
+                  />
+                  <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-0.5">
+                    <span>1条 (Tiêu chuẩn 6.6kV CVT)</span>
+                    <span>2条 (2 lộ song song)</span>
+                    <span>3条</span>
+                    <span>6条</span>
+                    <span>12条</span>
+                  </div>
+                </div>
+
+                {/* 4. Quick Protection Conduit Selector */}
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                      4. Lựa Chọn Ống Bảo Vệ (Protection Conduit):
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-indigo-800 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                      Hiện tại: {familyLabels[selectedFamily].jp}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFamily('FEP_UNDERGROUND')}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        selectedFamily === 'FEP_UNDERGROUND'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">波付FEP管 (Chôn ngầm)</span>
+                        {selectedFamily === 'FEP_UNDERGROUND' && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-[9px] opacity-80 block mt-0.5 truncate">JIS C 3653 • Tuyến ngầm cao thế</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFamily('STEEL_THICK_G')}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        selectedFamily === 'STEEL_THICK_G'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">厚鋼G管 (Đi nổi/Trồi lên)</span>
+                        {selectedFamily === 'STEEL_THICK_G' && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-[9px] opacity-80 block mt-0.5 truncate">JIS C 8305 • Bảo vệ cơ học trạm Cubicle</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              /* MULTI-CABLE BUILDER VIEW */
               <div className="space-y-3 text-xs">
                 <div className="space-y-2">
                   {multiCables.map((c, idx) => {
@@ -432,9 +720,38 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                     return (
                       <div
                         key={c.id}
-                        className="p-3 bg-slate-50/80 border border-slate-200/90 rounded-xl space-y-2"
+                        className={`p-3 rounded-xl border space-y-2.5 transition-all ${
+                          c.category === '6.6KV_CVT'
+                            ? 'bg-rose-50/40 border-rose-300'
+                            : 'bg-slate-50/80 border-slate-200'
+                        }`}
                       >
-                        <div className="flex items-center justify-between">
+                        {/* Cable Item Header */}
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {c.category === '6.6KV_CVT' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 border border-rose-300">
+                                ⚡ 高圧 6600V CVT
+                              </span>
+                            ) : c.category === '600V_CVT' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                低圧 CVT (3心)
+                              </span>
+                            ) : c.category === '600V_CV_1C' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300">
+                                600V CV 1心
+                              </span>
+                            ) : c.category === 'IV' ? (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                IV (接地線)
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-cyan-100 text-cyan-800 border border-cyan-300">
+                                PV DC 太陽光
+                              </span>
+                            )}
+                          </div>
+
                           <input
                             type="text"
                             value={c.name}
@@ -442,60 +759,85 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                               const val = e.target.value;
                               setMultiCables(prev => prev.map(item => item.id === c.id ? { ...item, name: val } : item));
                             }}
-                            className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs font-bold text-slate-900 flex-1 mr-2"
+                            className="bg-white border border-slate-200 rounded-md px-2 py-1 text-xs font-bold text-slate-900 flex-1 truncate font-sans"
+                            placeholder="Tên dây cáp"
                           />
+
                           <button
                             type="button"
                             onClick={() => handleRemoveMultiCable(c.id)}
                             className="text-slate-400 hover:text-rose-600 transition-colors p-1"
-                            title="Remove Cable"
+                            title="Xóa dây cáp"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
 
+                        {/* Dual Selectors: Cable Type + Conductor Size */}
                         <div className="grid grid-cols-12 gap-2 text-[11px] items-center">
-                          <div className="col-span-5">
-                            <label className="text-[10px] text-slate-500 block">種別・規格</label>
+                          {/* 1. Category */}
+                          <div className="col-span-4">
+                            <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Loại cáp (Type)</label>
+                            <select
+                              value={c.category || '6.6KV_CVT'}
+                              onChange={e => {
+                                const newCat = e.target.value;
+                                const matchingSpecs = CABLE_DIMENSIONS_LIBRARY.filter(lib => lib.cableType === newCat);
+                                const sameSize = matchingSpecs.find(s => s.sizeSq === c.sizeSq) || matchingSpecs.find(s => s.sizeSq === '250 sq') || matchingSpecs[0];
+                                const catLabel = newCat === '6.6KV_CVT' ? '6600V CVT' : newCat === '600V_CVT' ? '600V CVT' : newCat === '600V_CV_1C' ? '600V CV 1心' : newCat === 'IV' ? 'IV (接地線)' : 'PV DC';
+                                setMultiCables(prev => prev.map(item => item.id === c.id ? {
+                                  ...item,
+                                  category: newCat,
+                                  sizeSq: sameSize.sizeSq,
+                                  outerDiaMm: sameSize.outerDiaMm,
+                                  name: `${catLabel} ${sameSize.sizeSq}`
+                                } : item));
+                              }}
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] font-bold text-slate-800"
+                            >
+                              <option value="6.6KV_CVT">⚡ 高圧 6.6kV CVT</option>
+                              <option value="600V_CVT">⚡ 低圧 600V CVT</option>
+                              <option value="600V_CV_1C">⚡ 600V CV 1心</option>
+                              <option value="IV">🌱 IV (接地線)</option>
+                              <option value="SOLAR_DC">☀️ 太陽光 PV DC</option>
+                            </select>
+                          </div>
+
+                          {/* 2. Conductor Size */}
+                          <div className="col-span-4">
+                            <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Tiết diện (sq)</label>
                             <select
                               value={c.sizeSq}
                               onChange={e => {
-                                const selectedSpec = CABLE_DIMENSIONS_LIBRARY.find(lib => lib.sizeSq === e.target.value);
-                                if (selectedSpec) {
+                                const newSize = e.target.value;
+                                const currentCat = c.category || '6.6KV_CVT';
+                                // Filter STRICTLY inside currentCat to never fall back to IV
+                                const matchingSpecs = CABLE_DIMENSIONS_LIBRARY.filter(lib => lib.cableType === currentCat);
+                                const spec = matchingSpecs.find(lib => lib.sizeSq === newSize) || matchingSpecs[0];
+                                if (spec) {
+                                  const catLabel = spec.cableType === '6.6KV_CVT' ? '6600V CVT' : spec.cableType === '600V_CVT' ? '600V CVT' : spec.cableType === '600V_CV_1C' ? '600V CV 1心' : spec.cableType === 'IV' ? 'IV (接地線)' : 'PV DC';
                                   setMultiCables(prev => prev.map(item => item.id === c.id ? {
                                     ...item,
-                                    sizeSq: selectedSpec.sizeSq,
-                                    outerDiaMm: selectedSpec.outerDiaMm,
-                                    category: selectedSpec.cableType
+                                    category: spec.cableType,
+                                    sizeSq: spec.sizeSq,
+                                    outerDiaMm: spec.outerDiaMm,
+                                    name: `${catLabel} ${spec.sizeSq}`
                                   } : item));
                                 }
                               }}
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 text-[11px] font-medium"
+                              className="w-full bg-white border border-slate-300 rounded px-2 py-1 text-[11px] font-bold text-slate-900 font-mono"
                             >
-                              {CABLE_DIMENSIONS_LIBRARY.map((lib, libIdx) => (
+                              {CABLE_DIMENSIONS_LIBRARY.filter(lib => lib.cableType === (c.category || '6.6KV_CVT')).map((lib, libIdx) => (
                                 <option key={libIdx} value={lib.sizeSq}>
-                                  {lib.cableType.replace('_', ' ')}: {lib.sizeSq} (φ{lib.outerDiaMm}mm)
+                                  {lib.sizeSq} (φ{lib.outerDiaMm}mm)
                                 </option>
                               ))}
                             </select>
                           </div>
 
-                          <div className="col-span-3">
-                            <label className="text-[10px] text-slate-500 block">外径 (mm)</label>
-                            <input
-                              type="number"
-                              step="0.1"
-                              value={c.outerDiaMm}
-                              onChange={e => {
-                                const val = parseFloat(e.target.value) || 1;
-                                setMultiCables(prev => prev.map(item => item.id === c.id ? { ...item, outerDiaMm: val } : item));
-                              }}
-                              className="w-full bg-white border border-slate-200 rounded px-2 py-1 font-mono text-right"
-                            />
-                          </div>
-
+                          {/* 3. Quantity (Count) */}
                           <div className="col-span-4">
-                            <label className="text-[10px] text-slate-500 block">条数 (本)</label>
+                            <label className="text-[10px] text-slate-500 font-semibold block mb-0.5">Số sợi (条数)</label>
                             <div className="flex items-center space-x-1">
                               <button
                                 type="button"
@@ -522,21 +864,85 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                           </div>
                         </div>
 
+                        {/* Breakdown footer */}
                         <div className="flex justify-between items-center text-[10px] text-slate-500 pt-1 border-t border-slate-200/50">
-                          <span>単線断面積: <strong className="font-mono text-slate-700">{singleArea} mm²</strong></span>
-                          <span>小計断面積: <strong className="font-mono text-blue-700">{subtotalArea} mm²</strong> ({c.count}本分)</span>
+                          <span>Đường kính ngoài: <strong className="font-mono text-slate-800">φ{c.outerDiaMm} mm</strong> ｜ Đơn sợi: <strong className="font-mono text-slate-800">{singleArea} mm²</strong></span>
+                          <span>Tổng diện tích: <strong className="font-mono text-blue-700 font-bold">{subtotalArea} mm²</strong> ({c.count} sợi)</span>
                         </div>
                       </div>
                     );
                   })}
                 </div>
 
+                {/* Quick Protection Conduit Switcher Bar for Multi */}
+                <div className="p-3 bg-indigo-50/70 border border-indigo-200/90 rounded-xl space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-indigo-950 flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-indigo-600" />
+                      Lựa chọn ống bảo vệ (Protection Conduit Selection)
+                    </span>
+                    <span className="text-[10px] font-mono font-bold text-indigo-700 bg-white px-2 py-0.5 rounded border border-indigo-200">
+                      Hiện tại: {familyLabels[selectedFamily].jp}
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFamily('FEP_UNDERGROUND')}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        selectedFamily === 'FEP_UNDERGROUND'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">波付FEP管</span>
+                        {selectedFamily === 'FEP_UNDERGROUND' && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-[9px] opacity-80 block mt-0.5 truncate">地中埋設・高圧幹線用</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFamily('STEEL_THICK_G')}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        selectedFamily === 'STEEL_THICK_G'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">厚鋼G管</span>
+                        {selectedFamily === 'STEEL_THICK_G' && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-[9px] opacity-80 block mt-0.5 truncate">屋外露出・立上り防護</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setSelectedFamily('STEEL_THREADLESS_E')}
+                      className={`p-2 rounded-lg border text-left transition-all ${
+                        selectedFamily === 'STEEL_THREADLESS_E'
+                          ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
+                          : 'bg-white text-slate-800 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-[11px]">ねじなしE管</span>
+                        {selectedFamily === 'STEEL_THREADLESS_E' && <Check className="w-3.5 h-3.5 text-white" />}
+                      </div>
+                      <span className="text-[9px] opacity-80 block mt-0.5 truncate">屋内露出・天井内配線</span>
+                    </button>
+                  </div>
+                </div>
+
                 {/* Multi-Cable Total Summary Bar */}
                 <div className="p-3 rounded-xl bg-blue-50/70 border border-blue-200 flex justify-between items-center">
                   <div>
-                    <span className="text-[10px] text-blue-700 font-semibold block uppercase">電線総条数 / 総断面積</span>
+                    <span className="text-[10px] text-blue-700 font-semibold block uppercase">Tổng số sợi / Tổng diện tích</span>
                     <span className="text-xs text-blue-900 font-bold">
-                      合計: <span className="text-sm font-mono text-blue-950 font-black">{multiCalcResult.totalCablesCount} 本</span>
+                      Tổng: <span className="text-sm font-mono text-blue-950 font-black">{multiCalcResult.totalCablesCount} sợi/条</span>
                     </span>
                   </div>
                   <div className="text-right">
@@ -544,119 +950,6 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                     <span className="text-base font-black font-mono text-blue-950">
                       {multiCalcResult.totalCablesAreaMm2} <span className="text-xs font-normal">mm²</span>
                     </span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              /* SINGLE CABLE VIEW */
-              <div className="space-y-3.5 text-xs">
-                {/* Category Selector */}
-                <div>
-                  <label className="text-[11px] font-semibold text-slate-700 block mb-1.5">
-                    Cable Family / ケーブル種別
-                  </label>
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {[
-                      { id: 'SOLAR_DC', label: 'Solar PV DC (太陽光)' },
-                      { id: '600V_CV_1C', label: '600V CV 1心' },
-                      { id: '600V_CVT', label: '600V CVT (3心)' },
-                      { id: 'IV', label: 'IV (ビニル線)' },
-                      { id: '6.6KV_CVT', label: '高圧 6.6kV CVT' }
-                    ].map(cat => (
-                      <button
-                        key={cat.id}
-                        type="button"
-                        onClick={() => {
-                          setCableCategory(cat.id as any);
-                          setSelectedCableIndex(0);
-                          setCustomDiaActive(false);
-                        }}
-                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold text-left transition-colors truncate border ${
-                          cableCategory === cat.id
-                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
-                            : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                        }`}
-                      >
-                        {cat.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Cable Size Selector */}
-                {!customDiaActive && (
-                  <div>
-                    <label className="text-[11px] font-semibold text-slate-700 block mb-1">
-                      Conductor Size / 電線サイズ (sq)
-                    </label>
-                    <select
-                      value={selectedCableIndex}
-                      onChange={e => setSelectedCableIndex(parseInt(e.target.value))}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-hidden focus:border-blue-500 focus:bg-white"
-                    >
-                      {availableCables.map((c, idx) => (
-                        <option key={idx} value={idx}>
-                          {c.sizeSq} — 外径: {c.outerDiaMm} mm (断面積: {c.sectionalAreaMm2} mm²)
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-
-                {/* Custom Diameter Toggle & Input */}
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/80 space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[11px] font-semibold text-slate-700 flex items-center space-x-1.5 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={customDiaActive}
-                        onChange={e => setCustomDiaActive(e.target.checked)}
-                        className="rounded text-blue-600 focus:ring-blue-500"
-                      />
-                      <span>Custom Cable Outer Diameter (外径を直接入力)</span>
-                    </label>
-                  </div>
-
-                  {customDiaActive && (
-                    <div className="flex items-center space-x-2 pt-1">
-                      <input
-                        type="number"
-                        step="0.1"
-                        min={1}
-                        max={120}
-                        value={customOuterDiaMm}
-                        onChange={e => setCustomOuterDiaMm(parseFloat(e.target.value) || 1)}
-                        className="w-28 bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-900 text-right"
-                      />
-                      <span className="text-xs text-slate-500">mm (仕上外径)</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Number of Cables (本数) */}
-                <div>
-                  <div className="flex items-center justify-between mb-1">
-                    <label className="text-[11px] font-semibold text-slate-700">
-                      Number of Cables in Pipe / 収容本数:
-                    </label>
-                    <span className="font-mono font-black text-sm text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-200">
-                      {cableCount} 本
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={1}
-                    max={24}
-                    value={cableCount}
-                    onChange={e => setCableCount(parseInt(e.target.value) || 1)}
-                    className="w-full accent-blue-600"
-                  />
-                  <div className="flex justify-between text-[10px] text-slate-400 font-mono mt-0.5">
-                    <span>1本 (単線)</span>
-                    <span>3本 (三相)</span>
-                    <span>4本 (PVストリング組)</span>
-                    <span>8本</span>
-                    <span>24本</span>
                   </div>
                 </div>
               </div>
@@ -670,8 +963,8 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                 2
               </span>
               <div>
-                <h3 className="text-xs font-bold text-slate-900">Route &amp; Installation Conditions</h3>
-                <p className="text-[10px] text-slate-400">配管長・屈曲箇所・内線規程基準</p>
+                <h3 className="text-xs font-bold text-slate-900">Điều Kiện Tuyến &amp; Góc Cong (Route &amp; Installation)</h3>
+                <p className="text-[10px] text-slate-400">Chiều dài ống, khúc uốn cong 90°, tiêu chuẩn hộp kéo cáp Pull Box</p>
               </div>
             </div>
 
@@ -680,8 +973,8 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-700 flex items-center justify-between">
-                    <span>Route Length (配管長)</span>
-                    <span className="text-[10px] text-slate-400">基準: 30m以下</span>
+                    <span>Chiều dài tuyến ống</span>
+                    <span className="text-[10px] text-slate-400">Tiêu chuẩn: ≤ 30m</span>
                   </label>
                   <div className="relative">
                     <input
@@ -700,8 +993,8 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
 
                 <div className="space-y-1">
                   <label className="text-[11px] font-semibold text-slate-700 flex items-center justify-between">
-                    <span>90° Bends (曲がり数)</span>
-                    <span className="text-[10px] text-slate-400">基準: 3箇所以内</span>
+                    <span>Số góc cong 90°</span>
+                    <span className="text-[10px] text-slate-400">Tiêu chuẩn: ≤ 3 khúc</span>
                   </label>
                   <div className="relative">
                     <input
@@ -713,7 +1006,7 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                       className="w-full bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-mono font-bold text-slate-900"
                     />
                     <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[11px] text-slate-500 font-medium">
-                      箇所
+                      khúc
                     </span>
                   </div>
                 </div>
@@ -722,14 +1015,14 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
               {/* Occupancy Rule Display */}
               <div className="space-y-1.5">
                 <label className="text-[11px] font-semibold text-slate-700 block">
-                  Occupancy Limit Rule (内線規程 第3110節)
+                  Giới Hạn Tỷ Lệ Chiếm Dụng (JEAC 8001 第3110節)
                 </label>
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between">
                   <div>
                     <span className="font-bold text-slate-900 block text-xs">
                       {calculationResult.occupancyLimitPercent === 32
-                        ? '異なる太さ混在 / 屈曲配管 (32%以下)'
-                        : '同一太さ直線管路 (48%以下)'}
+                        ? 'Tuyến có khúc cong / khác kích cỡ (≤ 32%)'
+                        : 'Tuyến thẳng cùng cỡ dây (≤ 48%)'}
                     </span>
                     <span className="text-[10px] text-slate-500">{calculationResult.limitReason}</span>
                   </div>
@@ -739,7 +1032,7 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                 </div>
               </div>
 
-              {/* Pull Box Check Alert (isijp gk-haikan-2) */}
+              {/* Pull Box Check Alert */}
               <div className={`p-3 rounded-xl border flex items-start space-x-2.5 text-xs ${
                 multiCalcResult.pullBoxRequired
                   ? 'bg-amber-50 border-amber-300 text-amber-950'
@@ -752,11 +1045,11 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                 )}
                 <div className="space-y-0.5 leading-relaxed">
                   <div className="font-bold flex items-center space-x-1.5">
-                    <span>プルボックス (Pull Box) 設置基準:</span>
+                    <span>Hộp kéo cáp (Pull Box) trung gian:</span>
                     <span className={`px-1.5 py-0.2 rounded text-[10px] font-bold ${
                       multiCalcResult.pullBoxRequired ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900'
                     }`}>
-                      {multiCalcResult.pullBoxRequired ? '要設置 (REQUIRED)' : '不要 (OK)'}
+                      {multiCalcResult.pullBoxRequired ? 'CẦN LẮP ĐẶT' : 'KHÔNG CẦN (OK)'}
                     </span>
                   </div>
                   <p className="text-[11px] opacity-90">{multiCalcResult.pullBoxReason}</p>
@@ -766,13 +1059,13 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
               {/* Minimum Bending Radius & Bundling Derating */}
               <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block">最小曲げ半径 (内径×6)</span>
+                  <span className="text-[10px] text-slate-400 block">Bán kính uốn tối thiểu (R ≥ 6D)</span>
                   <span className="font-mono font-bold text-slate-800 text-sm">
                     R ≥ {multiCalcResult.minConduitBendingRadiusMm} mm
                   </span>
                 </div>
                 <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-                  <span className="text-[10px] text-slate-400 block">電流減少係数 (内線規程)</span>
+                  <span className="text-[10px] text-slate-400 block">Hệ số giảm dòng (Bundling Derating)</span>
                   <span className="font-mono font-bold text-blue-700 text-sm">
                     × {calculationResult.bundlingCurrentReductionFactor} ({(calculationResult.bundlingCurrentReductionFactor * 100).toFixed(0)}%)
                   </span>
@@ -782,26 +1075,217 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
           </div>
         </div>
 
-        {/* Right Column (7 Cols): SVG Visualizer, Recommendation & Comparison Table */}
+        {/* Right Column (7 Cols): Dual Protection Comparison, Visualizer & Recommendation Table */}
         <div className="lg:col-span-7 space-y-5">
-          {/* Top Recommendation Summary Card */}
+          {/* ========================================================================= */}
+          {/* DEDICATED CARD: PROTECTION CONDUIT SIZING & COMPARISON (FEP vs G管) */}
+          {/* Answers user: "tính được xem nên dùng loại ống nào bảo vệ" */}
+          {/* ========================================================================= */}
+          <div className="bg-gradient-to-br from-indigo-900 via-slate-900 to-slate-950 text-white rounded-2xl border border-indigo-500/30 shadow-md p-5 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-indigo-700/40 pb-3.5">
+              <div className="flex items-center space-x-2.5">
+                <div className="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+                  <ShieldCheck className="w-4 h-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
+                    So Sánh &amp; Đề Xuất Loại Ống Bảo Vệ: FEP vs G管
+                    <span className="text-[10px] font-mono bg-indigo-500/30 text-indigo-200 px-2 py-0.5 rounded border border-indigo-400/20">
+                      Chuyên gia tư vấn
+                    </span>
+                  </h3>
+                  <p className="text-[11px] text-indigo-200/80">
+                    Phân tích kích cỡ &amp; mục đích sử dụng giữa ống nhựa xoắn FEP (chôn ngầm) và ống thép dày G (đi nổi/trồi lên)
+                  </p>
+                </div>
+              </div>
+
+              <div className="text-right">
+                <span className="text-[10px] font-mono text-slate-400 block">Cáp đang tính:</span>
+                <span className="text-xs font-bold text-amber-300 font-mono">
+                  {isMulti ? `${multiCalcResult.totalCablesCount} sợi hỗn hợp` : `${activeCable?.sizeSq || selectedCableSize} (φ${effectiveOuterDiaMm}mm) × ${cableCount}条`}
+                </span>
+              </div>
+            </div>
+
+            {/* Dual Cards Comparison Grid: FEP vs G管 */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* 1. FEP Conduit Card */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                selectedFamily === 'FEP_UNDERGROUND'
+                  ? 'bg-blue-950/70 border-blue-400 ring-2 ring-blue-500/30 shadow-sm'
+                  : 'bg-slate-800/60 border-slate-700/70 hover:border-slate-600'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-sky-400" />
+                    <span className="text-xs font-bold text-sky-300">波付硬質合成樹脂管 (Ống FEP)</span>
+                  </div>
+                  <span className="text-[9px] font-mono bg-sky-950 text-sky-300 border border-sky-800 px-1.5 py-0.2 rounded">
+                    JIS C 3653
+                  </span>
+                </div>
+
+                <div className="mt-2.5 flex items-baseline justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Cỡ ống đề xuất:</span>
+                    <div className="text-2xl font-black font-mono text-white tracking-tight flex items-baseline gap-1.5">
+                      <span>{fepPipeResult.recommendedConduit.code}</span>
+                      <span className="text-xs text-sky-300 font-sans font-normal">(内径 φ{fepPipeResult.recommendedConduit.innerDiaMm}mm)</span>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                    fepPipeResult.isRecommendedCompliant ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {fepPipeResult.isRecommendedCompliant ? 'PASS (Hợp chuẩn)' : 'NG'}
+                  </span>
+                </div>
+
+                {/* Key Metrics */}
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-700/50 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Độ chiếm dụng:</span>
+                    <strong className="font-mono text-white text-xs">{fepPipeResult.actualOccupancyPercent}%</strong>
+                    <span className="text-[9px] text-slate-400 ml-1">/ max {fepPipeResult.occupancyLimitPercent}%</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Không gian còn dư:</span>
+                    <strong className="font-mono text-emerald-400 text-xs">
+                      +{Math.max(0, (fepPipeResult.recommendedConduit.innerAreaMm2 * fepPipeResult.occupancyLimitPercent / 100) - fepPipeResult.totalCableAreaMm2).toFixed(0)} mm²
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Recommendation Description */}
+                <div className="mt-3 p-2 rounded-lg bg-sky-950/40 border border-sky-900/50 text-[10px] text-sky-200 leading-relaxed">
+                  <strong className="text-sky-300 block mb-0.5 font-semibold">Khi nào nên dùng FEP?</strong>
+                  Dành cho <strong>tuyến cáp chôn ngầm dưới đất (地中埋設)</strong>. Gân xoắn chịu lực nén xe cộ trên mặt đường, uốn cong mềm dẻo không cần cút nối, hoàn toàn không bị rỉ sét.
+                </div>
+
+                {/* Action button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFamily('FEP_UNDERGROUND');
+                    showToast(`Đã áp dụng kích thước ống FEP: ${fepPipeResult.recommendedConduit.code}`);
+                  }}
+                  className={`w-full mt-3 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    selectedFamily === 'FEP_UNDERGROUND'
+                      ? 'bg-blue-600 text-white shadow-xs'
+                      : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {selectedFamily === 'FEP_UNDERGROUND' ? <Check className="w-3.5 h-3.5" /> : null}
+                  <span>{selectedFamily === 'FEP_UNDERGROUND' ? 'Đang chọn ống FEP này' : `Áp dụng FEP (${fepPipeResult.recommendedConduit.code})`}</span>
+                </button>
+              </div>
+
+              {/* 2. Steel G Conduit Card */}
+              <div className={`p-4 rounded-xl border transition-all ${
+                selectedFamily === 'STEEL_THICK_G'
+                  ? 'bg-indigo-950/70 border-indigo-400 ring-2 ring-indigo-500/30 shadow-sm'
+                  : 'bg-slate-800/60 border-slate-700/70 hover:border-slate-600'
+              }`}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-xs font-bold text-amber-300">厚鋼電線管 (Ống Thép Dày G)</span>
+                  </div>
+                  <span className="text-[9px] font-mono bg-amber-950 text-amber-300 border border-amber-800 px-1.5 py-0.2 rounded">
+                    JIS C 8305
+                  </span>
+                </div>
+
+                <div className="mt-2.5 flex items-baseline justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-400 uppercase font-semibold">Cỡ ống đề xuất:</span>
+                    <div className="text-2xl font-black font-mono text-white tracking-tight flex items-baseline gap-1.5">
+                      <span>{gPipeResult.recommendedConduit.code}</span>
+                      <span className="text-xs text-amber-300 font-sans font-normal">(内径 φ{gPipeResult.recommendedConduit.innerDiaMm}mm)</span>
+                    </div>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold font-mono ${
+                    gPipeResult.isRecommendedCompliant ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' : 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+                  }`}>
+                    {gPipeResult.isRecommendedCompliant ? 'PASS (Hợp chuẩn)' : 'NG'}
+                  </span>
+                </div>
+
+                {/* Key Metrics */}
+                <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-700/50 text-[11px]">
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Độ chiếm dụng:</span>
+                    <strong className="font-mono text-white text-xs">{gPipeResult.actualOccupancyPercent}%</strong>
+                    <span className="text-[9px] text-slate-400 ml-1">/ max {gPipeResult.occupancyLimitPercent}%</span>
+                  </div>
+                  <div>
+                    <span className="text-slate-400 block text-[10px]">Không gian còn dư:</span>
+                    <strong className="font-mono text-emerald-400 text-xs">
+                      +{Math.max(0, (gPipeResult.recommendedConduit.innerAreaMm2 * gPipeResult.occupancyLimitPercent / 100) - gPipeResult.totalCableAreaMm2).toFixed(0)} mm²
+                    </strong>
+                  </div>
+                </div>
+
+                {/* Recommendation Description */}
+                <div className="mt-3 p-2 rounded-lg bg-amber-950/40 border border-amber-900/50 text-[10px] text-amber-200 leading-relaxed">
+                  <strong className="text-amber-300 block mb-0.5 font-semibold">Khi nào nên dùng G管?</strong>
+                  Dành cho <strong>đoạn trồi lên mặt đất (立上り防護)</strong> vào tủ trạm biến áp (Cubicle), tủ RMU, chân cột điện. Thép mạ kẽm dày chống va đập xe cộ cơ học &amp; chống cháy nổ.
+                </div>
+
+                {/* Action button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedFamily('STEEL_THICK_G');
+                    showToast(`Đã áp dụng kích thước ống thép dày G: ${gPipeResult.recommendedConduit.code}`);
+                  }}
+                  className={`w-full mt-3 py-1.5 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                    selectedFamily === 'STEEL_THICK_G'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'bg-slate-700/80 hover:bg-slate-700 text-slate-200'
+                  }`}
+                >
+                  {selectedFamily === 'STEEL_THICK_G' ? <Check className="w-3.5 h-3.5" /> : null}
+                  <span>{selectedFamily === 'STEEL_THICK_G' ? 'Đang chọn ống G管 này' : `Áp dụng G管 (${gPipeResult.recommendedConduit.code})`}</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Engineering Synthesis Box */}
+            <div className="p-3 bg-slate-900/80 border border-indigo-500/20 rounded-xl text-xs flex items-start gap-2.5">
+              <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <div className="space-y-1">
+                <span className="font-bold text-amber-300 block">
+                  💡 Khuyến nghị phối hợp kỹ thuật thực tế (JEAC 8001 / 内線規程):
+                </span>
+                <p className="text-[11px] text-slate-300 leading-relaxed">
+                  Đối với tuyến cáp <strong>6600V CVT 250sq</strong>: Toàn bộ tuyến chôn ngầm dưới đất khuyến nghị dùng 
+                  <strong className="text-sky-300"> {fepPipeResult.recommendedConduit.code} (Ống FEP)</strong> để giảm chi phí và dễ kéo cáp. 
+                  Tại các điểm trồi lên mặt đất vào tủ trạm biến áp (Cubicle) hoặc chân cột điện, bắt buộc chuyển tiếp sang 
+                  <strong className="text-amber-300"> {gPipeResult.recommendedConduit.code} (Ống thép dày G管)</strong> qua phụ kiện FEP-G Adapter để chống va đập cơ học xe cộ.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Top Recommendation Summary Card for currently selected family */}
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4">
               <div>
                 <span className="text-[11px] uppercase tracking-wide font-bold text-slate-400 block">
-                  RECOMMENDED MINIMUM CONDUIT SIZE
+                  KÍCH THƯỚC ĐỀ XUẤT CHO LOẠI ỐNG ĐANG CHỌN ({familyLabels[selectedFamily].jp.split(' ')[0]})
                 </span>
                 <div className="flex items-baseline space-x-2 mt-0.5">
                   <span className="text-2xl sm:text-3xl font-black text-slate-900 tracking-tight">
                     {calculationResult.recommendedConduit.code}
                   </span>
                   <span className="text-xs font-semibold text-slate-500">
-                    ({familyLabels[selectedFamily].jp.split(' ')[0]})
+                    ({familyLabels[selectedFamily].jp})
                   </span>
                 </div>
                 <div className="text-xs text-slate-500 mt-0.5">
-                  内径: <span className="font-mono font-semibold text-slate-800">{calculationResult.recommendedConduit.innerDiaMm} mm</span> | 
-                  管内断面積: <span className="font-mono font-semibold text-slate-800">{calculationResult.recommendedConduit.innerAreaMm2} mm²</span>
+                  Đường kính trong: <span className="font-mono font-semibold text-slate-800">{calculationResult.recommendedConduit.innerDiaMm} mm</span> | 
+                  Diện tích lòng ống: <span className="font-mono font-semibold text-slate-800">{calculationResult.recommendedConduit.innerAreaMm2} mm²</span>
                 </div>
               </div>
 
@@ -812,10 +1296,10 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                     ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                     : 'bg-rose-50 text-rose-800 border-rose-200'
                 }`}>
-                  <div className="text-[10px] font-bold uppercase">判定 (VERDICT)</div>
+                  <div className="text-[10px] font-bold uppercase">KẾT LUẬN (VERDICT)</div>
                   <div className="text-base font-black flex items-center justify-center space-x-1">
                     <CheckCircle2 className="w-4 h-4 text-emerald-600 inline" />
-                    <span>PASS (合格)</span>
+                    <span>PASS (HỢP CHUẨN)</span>
                   </div>
                 </div>
               </div>
@@ -824,38 +1308,40 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
             {/* 3 Metric Mini Cards */}
             <div className="grid grid-cols-3 gap-3 pt-4">
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-center">
-                <div className="text-[10px] font-semibold text-slate-500">実占有率 (Actual Occupancy)</div>
+                <div className="text-[10px] font-semibold text-slate-500">Độ chiếm dụng thực tế</div>
                 <div className="text-lg font-black font-mono text-blue-600 mt-0.5">
                   {calculationResult.actualOccupancyPercent}%
                 </div>
-                <div className="text-[9px] text-slate-400">上限: {calculationResult.occupancyLimitPercent}%</div>
+                <div className="text-[9px] text-slate-400">Giới hạn: {calculationResult.occupancyLimitPercent}%</div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-center">
-                <div className="text-[10px] font-semibold text-slate-500">電線総断面積 (Total Area)</div>
+                <div className="text-[10px] font-semibold text-slate-500">Tổng diện tích cáp (Σa)</div>
                 <div className="text-lg font-black font-mono text-slate-900 mt-0.5">
                   {calculationResult.totalCableAreaMm2} mm²
                 </div>
-                <div className="text-[9px] text-slate-400">{effectiveOuterDiaMm}mm × {cableCount}本</div>
+                <div className="text-[9px] text-slate-400">
+                  {isMulti ? `${multiCalcResult.totalCablesCount} sợi` : `φ${effectiveOuterDiaMm}mm × ${cableCount}条`}
+                </div>
               </div>
 
               <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/70 text-center">
-                <div className="text-[10px] font-semibold text-slate-500">許容残余面積 (Free Margin)</div>
+                <div className="text-[10px] font-semibold text-slate-500">Dung lượng dư lòng ống</div>
                 <div className="text-lg font-black font-mono text-emerald-600 mt-0.5">
-                  {(
+                  {Math.max(0,
                     (calculationResult.recommendedConduit.innerAreaMm2 * calculationResult.occupancyLimitPercent / 100) -
                     calculationResult.totalCableAreaMm2
                   ).toFixed(0)} mm²
                 </div>
-                <div className="text-[9px] text-slate-400">通線余力</div>
+                <div className="text-[9px] text-slate-400">Dư để kéo cáp êm</div>
               </div>
             </div>
 
             {/* Interactive SVG Conduit Cross-Section Simulation */}
             <div className="mt-4 pt-4 border-t border-slate-100">
               <div className="flex items-center justify-between text-xs mb-2">
-                <span className="font-bold text-slate-800">Conduit Cross-Section View / 配管断面シミュレーション</span>
-                <span className="text-[11px] font-mono text-slate-400">1:1 Proportional Scale</span>
+                <span className="font-bold text-slate-800">Mô Phỏng Mặt Cắt Ngang Ống Luồn Dây (Cross-Section View)</span>
+                <span className="text-[11px] font-mono text-slate-400">Tỷ lệ trực quan 1:1</span>
               </div>
 
               <div className="bg-slate-900 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-around gap-4 text-white">
@@ -867,34 +1353,49 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                     {/* Conduit Inner Wall (Lumen) */}
                     <circle cx="80" cy="80" r="67" fill="#0f172a" stroke="#38bdf8" strokeWidth="2" strokeDasharray="3 3" />
 
-                    {/* Cables inside packed in circular formation */}
-                    {Array.from({ length: cableCount }).map((_, idx) => {
-                      const maxR = 40;
-                      let cx = 80;
-                      let cy = 80;
-                      const singleCableRadius = Math.max(5, Math.min(22, (effectiveOuterDiaMm / calculationResult.recommendedConduit.innerDiaMm) * 55));
+                    {/* Realistic 3-Core Triplex Bundle for CVT cable */}
+                    {(cableCategory === '6.6KV_CVT' || cableCategory === '600V_CVT') && !isMulti && cableCount === 1 ? (
+                      <g>
+                        {/* Core R */}
+                        <circle cx="80" cy="65" r="17" fill="#e11d48" stroke="#f43f5e" strokeWidth="1.5" />
+                        <circle cx="80" cy="65" r="7" fill="#f59e0b" />
+                        {/* Core S */}
+                        <circle cx="67" cy="88" r="17" fill="#ffffff" stroke="#cbd5e1" strokeWidth="1.5" />
+                        <circle cx="67" cy="88" r="7" fill="#f59e0b" />
+                        {/* Core T */}
+                        <circle cx="93" cy="88" r="17" fill="#2563eb" stroke="#3b82f6" strokeWidth="1.5" />
+                        <circle cx="93" cy="88" r="7" fill="#f59e0b" />
+                      </g>
+                    ) : (
+                      /* General Cables formation */
+                      Array.from({ length: isMulti ? multiCalcResult.totalCablesCount : cableCount }).map((_, idx) => {
+                        const total = isMulti ? multiCalcResult.totalCablesCount : cableCount;
+                        let cx = 80;
+                        let cy = 80;
+                        const singleCableRadius = Math.max(6, Math.min(22, (effectiveOuterDiaMm / calculationResult.recommendedConduit.innerDiaMm) * 55));
 
-                      if (cableCount > 1) {
-                        const angle = (idx / cableCount) * (2 * Math.PI);
-                        const clusterR = Math.min(38, 20 + cableCount * 1.5);
-                        cx = 80 + clusterR * Math.cos(angle);
-                        cy = 80 + clusterR * Math.sin(angle);
-                      }
+                        if (total > 1) {
+                          const angle = (idx / total) * (2 * Math.PI);
+                          const clusterR = Math.min(36, 18 + total * 1.5);
+                          cx = 80 + clusterR * Math.cos(angle);
+                          cy = 80 + clusterR * Math.sin(angle);
+                        }
 
-                      return (
-                        <g key={idx}>
-                          <circle
-                            cx={cx}
-                            cy={cy}
-                            r={singleCableRadius}
-                            fill="#f59e0b"
-                            stroke="#fbbf24"
-                            strokeWidth="1.5"
-                          />
-                          <circle cx={cx} cy={cy} r={singleCableRadius * 0.45} fill="#b45309" />
-                        </g>
-                      );
-                    })}
+                        return (
+                          <g key={idx}>
+                            <circle
+                              cx={cx}
+                              cy={cy}
+                              r={singleCableRadius}
+                              fill="#f59e0b"
+                              stroke="#fbbf24"
+                              strokeWidth="1.5"
+                            />
+                            <circle cx={cx} cy={cy} r={singleCableRadius * 0.45} fill="#b45309" />
+                          </g>
+                        );
+                      })
+                    )}
 
                     {/* Pipe Code Text in Center */}
                     <text x="80" y="84" textAnchor="middle" fill="#ffffff" fontSize="11" fontWeight="bold" opacity="0.8">
@@ -908,19 +1409,19 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                   <div className="flex items-center space-x-2">
                     <span className="w-3 h-3 rounded-full border border-sky-400 bg-slate-900 inline-block" />
                     <span className="text-slate-300">
-                      管内径: <strong className="text-white font-mono">{calculationResult.recommendedConduit.innerDiaMm} mm</strong>
+                      Ống bảo vệ: <strong className="text-white font-mono">{calculationResult.recommendedConduit.code}</strong> (Lòng trong: φ{calculationResult.recommendedConduit.innerDiaMm}mm)
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="w-3 h-3 rounded-full bg-amber-500 inline-block" />
                     <span className="text-slate-300">
-                      電線外径: <strong className="text-white font-mono">{effectiveOuterDiaMm} mm</strong> × {cableCount}本
+                      Cáp luồn: <strong className="text-white font-mono">{isMulti ? `${multiCalcResult.totalCablesCount} sợi` : (cableCategory === '6.6KV_CVT' ? '6600V CVT 250sq' : `${selectedCableSize}`)}</strong> (φ{effectiveOuterDiaMm}mm)
                     </span>
                   </div>
                   <div className="flex items-center space-x-2">
                     <span className="w-3 h-3 rounded-full bg-emerald-500 inline-block" />
                     <span className="text-slate-300">
-                      配管占有率: <strong className="text-emerald-400 font-mono">{calculationResult.actualOccupancyPercent}%</strong> (OK)
+                      Độ chiếm dụng: <strong className="text-emerald-400 font-mono">{calculationResult.actualOccupancyPercent}%</strong> (Chuẩn ≤ {calculationResult.occupancyLimitPercent}%)
                     </span>
                   </div>
                   <div className="text-[11px] text-slate-400 pt-1 font-mono">
@@ -935,13 +1436,13 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
           <div className="bg-white rounded-2xl border border-slate-200/80 shadow-xs p-5 space-y-3">
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-xs font-bold text-slate-900">Conduit Size Schedule / 配管サイズ適合一覧</h3>
+                <h3 className="text-xs font-bold text-slate-900">Bảng Đánh Giá Tất Cả Kích Thước Ống ({familyLabels[selectedFamily].jp.split(' ')[0]})</h3>
                 <p className="text-[10px] text-slate-500">
-                  {familyLabels[selectedFamily].jp} 全サイズの占有率・余力比較表
+                  Danh mục toàn bộ các cỡ ống của {familyLabels[selectedFamily].jp} theo tiêu chuẩn {familyLabels[selectedFamily].standard}
                 </p>
               </div>
-              <span className="text-[10px] font-mono text-slate-400 bg-slate-100 px-2 py-0.5 rounded">
-                占有率上限: {calculationResult.occupancyLimitPercent}%
+              <span className="text-[10px] font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                Chiếm dụng max: {calculationResult.occupancyLimitPercent}%
               </span>
             </div>
 
@@ -949,16 +1450,16 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
               <table className="w-full text-left text-xs">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 text-[11px]">
-                    <th className="py-2.5 px-3 font-semibold">呼び径 (Code)</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">外径 / 内径</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">管内断面積</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">許容面積 ({calculationResult.occupancyLimitPercent}%)</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">実占有率</th>
-                    <th className="py-2.5 px-2 font-semibold text-right">残余余力</th>
-                    <th className="py-2.5 px-3 font-semibold text-center">適合判定</th>
+                    <th className="py-2.5 px-3 font-semibold">Mã ống (Code)</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Ngoài / Trong</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Lòng ống (mm²)</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Cho phép ({calculationResult.occupancyLimitPercent}%)</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Chiếm dụng</th>
+                    <th className="py-2.5 px-2 font-semibold text-right">Không gian dư</th>
+                    <th className="py-2.5 px-3 font-semibold text-center">Đánh giá</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-100">
+                <tbody className="divide-y divide-slate-100 font-mono">
                   {calculationResult.comparisonList.map(row => {
                     const isRec = row.conduit.code === calculationResult.recommendedConduit.code;
                     const allowedArea = ((row.conduit.innerAreaMm2 * calculationResult.occupancyLimitPercent) / 100).toFixed(0);
@@ -970,32 +1471,32 @@ export const ConduitSizingCalculator: React.FC<ConduitSizingCalculatorProps> = (
                           isRec ? 'bg-blue-50/80 font-bold' : 'hover:bg-slate-50'
                         }`}
                       >
-                        <td className="py-2.5 px-3 font-bold text-slate-900 flex items-center space-x-1.5">
+                        <td className="py-2.5 px-3 font-bold text-slate-900 font-sans flex items-center space-x-1.5">
                           <span>{row.conduit.code}</span>
                           {isRec && (
-                            <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-bold">
-                              推奨
+                            <span className="text-[9px] bg-blue-600 text-white px-1.5 py-0.2 rounded font-bold font-sans">
+                              ĐỀ XUẤT
                             </span>
                           )}
                         </td>
-                        <td className="py-2.5 px-2 font-mono text-right text-slate-600">
+                        <td className="py-2.5 px-2 text-right text-slate-600">
                           {row.conduit.outerDiaMm} / {row.conduit.innerDiaMm} mm
                         </td>
-                        <td className="py-2.5 px-2 font-mono text-right text-slate-600">
+                        <td className="py-2.5 px-2 text-right text-slate-600">
                           {row.conduit.innerAreaMm2.toLocaleString()} mm²
                         </td>
-                        <td className="py-2.5 px-2 font-mono text-right text-slate-600">
+                        <td className="py-2.5 px-2 text-right text-slate-600">
                           {allowedArea} mm²
                         </td>
-                        <td className={`py-2.5 px-2 font-mono text-right font-bold ${
+                        <td className={`py-2.5 px-2 text-right font-bold ${
                           row.isCompliant ? 'text-blue-600' : 'text-rose-600'
                         }`}>
                           {row.occupancyPercent}%
                         </td>
-                        <td className="py-2.5 px-2 font-mono text-right text-slate-600">
+                        <td className="py-2.5 px-2 text-right text-slate-600">
                           {row.remainingAreaMm2 > 0 ? `+${row.remainingAreaMm2} mm²` : `${row.remainingAreaMm2} mm²`}
                         </td>
-                        <td className="py-2.5 px-3 text-center">
+                        <td className="py-2.5 px-3 text-center font-sans">
                           {row.status === 'PASS' ? (
                             <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
                               PASS
