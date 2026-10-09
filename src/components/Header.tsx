@@ -18,7 +18,8 @@ import {
   X,
   Plus,
   ArrowLeft,
-  Building2
+  Building2,
+  Home
 } from 'lucide-react';
 import { ActiveTab } from '../types';
 import { ProjectSubView } from './Sidebar';
@@ -203,14 +204,32 @@ export const Header: React.FC<HeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-30 h-14 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 flex items-center justify-between transition-all">
-      {/* Left: Mobile hamburger & Workspace Breadcrumbs */}
-      <div className="flex items-center space-x-3 min-w-0">
+      {/* Left: Mobile hamburger, Solnexa Home Link & Workspace Breadcrumbs */}
+      <div className="flex items-center space-x-2 sm:space-x-3 min-w-0">
         <button
           onClick={onToggleMobileSidebar}
           className="md:hidden p-1.5 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors"
           title="Toggle Menu"
         >
           <Menu className="w-5 h-5" />
+        </button>
+
+        {/* Global Solnexa Home Return Button (Available everywhere) */}
+        <button
+          type="button"
+          onClick={() => {
+            if (onBackToCorporate) {
+              onBackToCorporate();
+            } else {
+              onSelectTab('dashboard');
+            }
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-slate-700 hover:text-[#003366] hover:bg-blue-50/80 transition-all cursor-pointer group shrink-0 border border-transparent hover:border-blue-200/60"
+          title="SOLNEXA ホームページ / トップ画面へ戻る"
+        >
+          <Home className="w-4 h-4 text-[#003366] group-hover:scale-110 transition-transform" />
+          <span className="font-bold text-xs text-[#003366] hidden md:inline">SOLNEXA ホーム</span>
         </button>
 
         {isWorkspace ? (

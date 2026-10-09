@@ -10,7 +10,10 @@ import { specificationNormalizer } from './specificationNormalizer';
 
 export class ReviewService {
   public getPendingEquipment(): EquipmentModel[] {
-    return db.getModels({ isApproved: false });
+    const unapproved = db.getModels({ isApproved: false });
+    if (unapproved.length > 0) return unapproved;
+    // Fallback: return ingested models so engineers can always review, verify and annotate datasheets
+    return db.getModels().slice(0, 8);
   }
 
   public getModelReviewDetails(modelId: string): {

@@ -428,7 +428,12 @@ apiRouter.get('/datasheets', (req: Request, res: Response) => {
 
 // --- Equipment Library & Models ---
 apiRouter.get('/equipment', (req: Request, res: Response) => {
-  const { category, manufacturerId, search, isApproved } = req.query;
+  const { category, manufacturerId, search, isApproved, reviewStatus } = req.query;
+
+  if (reviewStatus === 'PENDING') {
+    const pending = reviewService.getPendingEquipment();
+    return res.json(pending);
+  }
 
   const models = db.getModels({
     category: category ? (category as EquipmentCategoryCode) : undefined,
@@ -1161,11 +1166,27 @@ const SOLNEXA_AI_SYSTEM_INSTRUCTION = `あなたは日本を代表する太陽�
 - ユーザーの対話履歴を文脈として踏まえ、追加の質問や計算条件に対しても自然に深掘りしてください。
 - 必要に応じて「SOLNEXA TOOLS」の活用や専門エンジニアへの設計見積・特注相談（無料）を案内してください。`;
 
-async function executeGeminiMultiTurnChat(message: string, history?: any[], requestedModel?: string) {
-  let targetModel = 'gemini-2.5-flash';
-  if (requestedModel === 'gemini-2.5-pro' || requestedModel === 'gemini-3.8-flash' || requestedModel === 'gemini-3.1-pro-preview') {
-    targetModel = requestedModel;
+async function executeGeminiMultiTurnChat(
+  message: string,
+  history?: any[],
+  requestedModel?: string,
+  options?: {
+    useMaps?: boolean;
+    userLatLng?: { latitude: number; longitude: number };
   }
+) {
+  // Check if this query needs Google Maps Grounding
+  const isMapsQuery = Boolean(
+    options?.useMaps ||
+    /マップ|地図|場所|どこ|住所|近隣|消防署|変電所|電力会社|支社|支店|管轄|所在地|現場|敷地|アクセス|市役所|県庁|北海道|東北|関東|東京|中部|関西|中国|四国|九州|沖縄|prefecture|location|address|station|substation|fire department|solar farm|bess site/i.test(message)
+  );
+
+  // Per system instructions: Use gemini-3.5-flash (with googleMaps tool)
+  const targetModel = isMapsQuery
+    ? 'gemini-3.5-flash'
+    : (requestedModel === 'gemini-3.8-flash' || requestedModel === 'gemini-3.1-pro-preview'
+      ? requestedModel
+      : 'gemini-3.8-flash');
 
   // Try real Gemini API first if configured
   if (process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY.trim() !== '') {
@@ -1197,23 +1218,77 @@ async function executeGeminiMultiTurnChat(message: string, history?: any[], requ
         parts: [{ text: message }]
       });
 
+      const config: any = {
+        systemInstruction: `${SOLNEXA_AI_SYSTEM_INSTRUCTION}
+【Google Maps連動ガイドライン】
+太陽光発電（PV）および系統用蓄電池（BESS）の立地、所轄消防本部・消防署（消防法第19条・保有空地3m事前協議窓口）、一般送配電事業者の受変電所・系統アクセス窓口、周辺メガソーラー施設に関して、Google Mapsの正確な地点情報を活用して回答してください。施設名や住所を明確に提示してください。
+【言語対応】ユーザーが日本語、ベトナム語、英語のいずれで質問しても、その言語（日本語には自然で丁寧なビジネス技術日本語、ベトナム語には正確な専門エンジニアリングベトナム語）で正確かつ親切に回答してください。`
+      };
+
+      if (isMapsQuery) {
+        config.tools = [{ googleMaps: {} }];
+        if (options?.userLatLng && typeof options.userLatLng.latitude === 'number' && typeof options.userLatLng.longitude === 'number') {
+          config.toolConfig = {
+            retrievalConfig: {
+              latLng: {
+                latitude: options.userLatLng.latitude,
+                longitude: options.userLatLng.longitude
+              }
+            }
+          };
+        }
+        // NOTE: DO NOT set responseMimeType or responseSchema when using googleMaps tool
+      } else {
+        config.temperature = 0.4;
+      }
+
       const response = await ai.models.generateContent({
         model: targetModel,
         contents,
-        config: {
-          systemInstruction: `${SOLNEXA_AI_SYSTEM_INSTRUCTION}
-【言語対応】ユーザーが日本語、ベトナム語、英語のいずれで質問しても、その言語（日本語には自然で丁寧なビジネス技術日本語、ベトナム語には正確な専門エンジニアリングベトナム語）で正確かつ親切に回答してください。`,
-          temperature: 0.4
-        }
+        config
       });
 
       const answer = response.text;
+      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
+
+      // Extract Maps URLs from groundingChunks
+      const mapsPlaces: Array<{
+        title: string;
+        uri: string;
+        snippets?: string[];
+        address?: string;
+      }> = [];
+
+      if (Array.isArray(groundingChunks)) {
+        for (const chunk of groundingChunks) {
+          if (chunk.maps?.uri) {
+            const snippets: string[] = [];
+            if (chunk.maps.placeAnswerSources?.reviewSnippets) {
+              for (const s of chunk.maps.placeAnswerSources.reviewSnippets) {
+                if (typeof s === 'string') snippets.push(s);
+                else if ((s as any)?.snippet) snippets.push((s as any).snippet);
+                else if ((s as any)?.reviewText) snippets.push((s as any).reviewText);
+              }
+            }
+            mapsPlaces.push({
+              title: chunk.maps.title || 'Google Maps 地点情報',
+              uri: chunk.maps.uri,
+              snippets: snippets.length > 0 ? snippets : undefined,
+              address: (chunk.maps as any)?.address || (chunk.maps as any)?.formattedAddress
+            });
+          }
+        }
+      }
+
       if (answer && answer.trim()) {
         return {
           success: true,
           answer: answer.trim(),
           model: targetModel,
-          source: 'gemini-live'
+          source: isMapsQuery ? 'gemini-maps-grounding' : 'gemini-live',
+          isMapsGrounding: isMapsQuery,
+          mapsPlaces: mapsPlaces.length > 0 ? mapsPlaces : undefined,
+          groundingChunks: mapsPlaces.length > 0 ? mapsPlaces : undefined
         };
       }
     } catch (apiErr: any) {

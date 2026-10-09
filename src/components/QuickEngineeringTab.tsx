@@ -26,11 +26,26 @@ import {
   LayoutGrid,
   ListFilter,
   Check,
-  Sparkles
+  Sparkles,
+  ChevronLeft,
+  Printer,
+  X,
+  ArrowUp,
+  BookmarkCheck,
+  Trash2,
+  Grid,
+  Layers,
+  Home,
+  ShieldAlert,
+  Wind,
+  TrendingUp
 } from 'lucide-react';
 import { Project } from '../types';
 import { ConduitSizingCalculator } from './ConduitSizingCalculator';
 import { SnowWeatherChecker } from './SnowWeatherChecker';
+import { BessFireSafetyCalculator } from './BessFireSafetyCalculator';
+import { JisWindLoadCalculator } from './JisWindLoadCalculator';
+import { BessCurtailmentRevenueCalculator } from './BessCurtailmentRevenueCalculator';
 import {
   calculateKyokutoVoltageDrop,
   evaluateAllJisCableCandidates,
@@ -40,6 +55,9 @@ import {
 
 export type QuickToolTab =
   | 'snow-weather'
+  | 'bess-fire-safety'
+  | 'jis-wind-load'
+  | 'bess-curtailment'
   | 'kyokuto-vdrop'
   | 'isijp-conduit'
   | 'pv-pcs-cable'
@@ -87,6 +105,45 @@ export const QUICK_ENGINEERING_TOOLS: QuickToolMeta[] = [
     desc: '建設省告示第1455号による自動計算値（d = α×ls + β×rs + γ）と特定行政庁公式規定値（垂直積雪量）を瞬時に対照。海率rs幾何計算・AMeDAS実況・7日間予報・BESS留意事項。',
     standard: '建設省告示第1455号 / 建築基準法施行令第86条第3項',
     outputHighlights: ['垂直積雪量(cm)', '海率rs幾何計算', 'AMeDAS実況', '凍結注意']
+  },
+  {
+    id: 'bess-fire-safety',
+    titleEn: 'BESS Fire Safety & Separation',
+    titleJa: 'BESS 消防法・離隔距離判定',
+    badge: '無料 即時判定',
+    badgeType: 'free',
+    icon: ShieldAlert,
+    accentColor: 'text-rose-600 bg-rose-100 border-rose-200',
+    cardBorder: 'hover:border-rose-400',
+    desc: '消防法政令第19条および市町村火災予防条例準拠。4,800kWh基準、敷地境界3m離隔、隣接建物離隔、コンテナ間隔、耐火壁（コンクリート100mm等）緩和措置、消火設備要件を自動判定。',
+    standard: '消防法政令第19条 / 消防危第2号 / 市町村火災予防条例',
+    outputHighlights: ['保有空地3m判定', '4,800kWh基準判定', '耐火壁緩和措置', '消防署事前協議優先度']
+  },
+  {
+    id: 'jis-wind-load',
+    titleEn: 'JIS C 8955 Wind Load & Pile Pullout',
+    titleJa: 'JIS C 8955 架台風圧・杭引抜力',
+    badge: '無料 即時計算',
+    badgeType: 'free',
+    icon: Wind,
+    accentColor: 'text-teal-600 bg-teal-100 border-teal-200',
+    cardBorder: 'hover:border-teal-400',
+    desc: 'JIS C 8955:2017および建設省告示第1454号準拠。基準風速V0（全国30〜46m/s）、地表面粗度区分、アレイ傾斜角、風力係数Cwから設計風圧荷重qおよびスクリュー杭・基礎引抜耐力を即座に照査。',
+    standard: 'JIS C 8955:2017 / 建設省告示第1454号 / 建築基準法施行令第87条',
+    outputHighlights: ['風力係数Cw(正/負圧)', '設計速度圧q(N/m²)', '杭引抜安全率FS', '告示1454号準拠']
+  },
+  {
+    id: 'bess-curtailment',
+    titleEn: 'BESS Curtailment & JEPX Revenue',
+    titleJa: '出力制御回避＆JEPX収益試算',
+    badge: '無料 即時試算',
+    badgeType: 'free',
+    icon: TrendingUp,
+    accentColor: 'text-emerald-600 bg-emerald-100 border-emerald-200',
+    cardBorder: 'hover:border-emerald-400',
+    desc: '各電力エリア（九州・東北等）の出力制御率（10〜18%）およびJEPXスポット市場（0.01円充電〜夕方ピーク放電）に基づく収益スタッキング（余剰回避・価格差益・容量市場・需給調整市場）とIRR・回収年数を瞬時算出。',
+    standard: '経済産業省 審議会資料 / 広域機関(OCCTO)連系ルール / JEPX市場',
+    outputHighlights: ['年間増収額(万円)', '出力制御回避率(%)', 'プロジェクトIRR(%)', '20年回収シミュレーション']
   },
   {
     id: 'kyokuto-vdrop',
@@ -216,6 +273,108 @@ export const QuickEngineeringTab: React.FC<QuickEngineeringTabProps> = ({
         el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       }
     }, 60);
+  };
+
+  // State for Tool Grid Modal & Dossier Modal
+  const [isToolGridModalOpen, setIsToolGridModalOpen] = useState(false);
+  const [isDossierModalOpen, setIsDossierModalOpen] = useState(false);
+  const [dossierList, setDossierList] = useState<any[]>(() => {
+    try {
+      const saved = localStorage.getItem('solnexa_engineering_dossier');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const refreshDossier = () => {
+    try {
+      const saved = localStorage.getItem('solnexa_engineering_dossier');
+      setDossierList(saved ? JSON.parse(saved) : []);
+    } catch {
+      setDossierList([]);
+    }
+  };
+
+  useEffect(() => {
+    const handleUpdate = () => refreshDossier();
+    window.addEventListener('solnexa-dossier-updated', handleUpdate);
+    return () => window.removeEventListener('solnexa-dossier-updated', handleUpdate);
+  }, []);
+
+  const currentToolIndex = useMemo(() => {
+    const idx = QUICK_ENGINEERING_TOOLS.findIndex(
+      t => t.id === activeSubTab || (t.alias && t.alias.includes(activeSubTab))
+    );
+    return idx >= 0 ? idx : 0;
+  }, [activeSubTab]);
+
+  const handlePrevTool = () => {
+    const prevIdx = currentToolIndex > 0 ? currentToolIndex - 1 : QUICK_ENGINEERING_TOOLS.length - 1;
+    handleSelectTool(QUICK_ENGINEERING_TOOLS[prevIdx].id);
+  };
+
+  const handleNextTool = () => {
+    const nextIdx = currentToolIndex < QUICK_ENGINEERING_TOOLS.length - 1 ? currentToolIndex + 1 : 0;
+    handleSelectTool(QUICK_ENGINEERING_TOOLS[nextIdx].id);
+  };
+
+  const handleRemoveDossierItem = (id: string) => {
+    const updated = dossierList.filter(item => item.id !== id);
+    setDossierList(updated);
+    try {
+      localStorage.setItem('solnexa_engineering_dossier', JSON.stringify(updated));
+      window.dispatchEvent(new Event('solnexa-dossier-updated'));
+    } catch {}
+    showToast('計算書から項目を削除しました。');
+  };
+
+  const handleClearDossier = () => {
+    setDossierList([]);
+    try {
+      localStorage.removeItem('solnexa_engineering_dossier');
+      window.dispatchEvent(new Event('solnexa-dossier-updated'));
+    } catch {}
+    showToast('技術計算書をリセットしました。');
+  };
+
+  const handleExportCombinedDossier = () => {
+    if (dossierList.length === 0) {
+      showToast('技術計算書に保存された項目がありません。各ツールの「技術計算書に追加」を押してください。');
+      return;
+    }
+    const reportData = `================================================================================
+株式会社ソルネクサ (SOLNEXA JAPAN)
+総合技術計算書・設計照査報告書（Unified Engineering Calculation Dossier）
+発行日時: ${new Date().toLocaleString('ja-JP')}
+対象プロジェクト: ${pvPcsProject}
+準拠基準: 建設省告示第1455号 / JIS C 3605 / JIS C 8955 / 内線規程第3110節 / JEC-2200
+================================================================================
+
+【収録計算項目一覧: 合計 ${dossierList.length} 件】
+${dossierList.map((item, idx) => `
+--------------------------------------------------------------------------------
+[項目 ${idx + 1}] ${item.toolTitle} (保存日時: ${item.dateStr || '記録済み'})
+概要: ${item.summary}
+詳細パラメータ:
+${item.data ? Object.entries(item.data).map(([k, v]) => `  ・${k}: ${v}`).join('\n') : '  (計算結果保持)'}
+--------------------------------------------------------------------------------
+`).join('')}
+
+================================================================================
+判定所見:
+上記計算値はSOLNEXA統合エンジニアリングエンジンにより日本国内の法規および電気設備技術基準に基づき照合・導出されました。
+確認申請および一般送配電事業者との系統連系協議提出資料として保管されます。
+================================================================================`;
+
+    const blob = new Blob([reportData], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `SOLNEXA_Unified_Engineering_Dossier_${new Date().toISOString().split('T')[0]}.txt`;
+    link.click();
+    URL.revokeObjectURL(url);
+    showToast('総合技術計算書を出力しました。');
   };
 
   // -------------------------------------------------------------
@@ -599,17 +758,66 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
           </div>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0 self-start md:self-auto">
+        <div className="flex flex-wrap items-center gap-2 shrink-0 self-start md:self-auto">
+          {/* Sequential Tool Switcher */}
+          <div className="inline-flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button
+              type="button"
+              onClick={handlePrevTool}
+              className="p-1.5 hover:bg-white text-slate-700 hover:text-blue-700 rounded-lg transition-colors cursor-pointer"
+              title="前のツールへ切替"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+            <span className="text-[11px] font-mono font-bold text-slate-700 px-2">
+              {currentToolIndex + 1} / {QUICK_ENGINEERING_TOOLS.length}
+            </span>
+            <button
+              type="button"
+              onClick={handleNextTool}
+              className="p-1.5 hover:bg-white text-slate-700 hover:text-blue-700 rounded-lg transition-colors cursor-pointer"
+              title="次のツールへ切替"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Tool Grid Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsToolGridModalOpen(true)}
+            className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200/80 transition-all shadow-2xs cursor-pointer active:scale-98"
+            title={`${QUICK_ENGINEERING_TOOLS.length}つの全計算ツールをカード一覧で表示`}
+          >
+            <Grid className="w-3.5 h-3.5 text-blue-600" />
+            <span>ツール一覧 ({QUICK_ENGINEERING_TOOLS.length})</span>
+          </button>
+
+          {/* Dossier Modal Trigger */}
+          <button
+            type="button"
+            onClick={() => setIsDossierModalOpen(true)}
+            className={`inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all shadow-2xs cursor-pointer active:scale-98 border ${
+              dossierList.length > 0
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100'
+                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+            }`}
+            title="計算結果を合算した総合技術計算書（Dossier）を確認"
+          >
+            <BookmarkCheck className="w-3.5 h-3.5 text-emerald-600" />
+            <span>技術計算書</span>
+            <span className="bg-emerald-600 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+              {dossierList.length}
+            </span>
+          </button>
+
           <button
             onClick={handleExportReport}
-            className="inline-flex items-center space-x-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer active:scale-98"
+            className="inline-flex items-center space-x-1.5 px-3 py-2 rounded-xl text-xs font-semibold bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 transition-colors shadow-2xs cursor-pointer active:scale-98"
           >
             <FileText className="w-3.5 h-3.5 text-slate-500" />
-            <span>Export Report</span>
+            <span>単体出力</span>
           </button>
-          <span className="text-xs font-semibold text-blue-700 bg-blue-50 px-3 py-2 rounded-xl border border-blue-200/60 hidden sm:inline-block">
-            JIS C 3605 &amp; 8305 Standardized
-          </span>
         </div>
       </div>
 
@@ -654,6 +862,36 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
           onOpenProject={onOpenProject}
           isLoggedIn={isLoggedIn}
           onOpenLogin={onOpenLogin}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* 0.1 BESS FIRE SAFETY CALCULATOR (消防法・離隔距離判定)     */}
+      {/* ========================================================= */}
+      {activeSubTab === 'bess-fire-safety' && (
+        <BessFireSafetyCalculator
+          onOpenContact={onOpenLogin}
+          isLoggedIn={isLoggedIn}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* 0.2 JIS C 8955 WIND LOAD & PILE (架台風圧・杭引抜力)      */}
+      {/* ========================================================= */}
+      {activeSubTab === 'jis-wind-load' && (
+        <JisWindLoadCalculator
+          onOpenContact={onOpenLogin}
+          isLoggedIn={isLoggedIn}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* 0.3 BESS CURTAILMENT & JEPX REVENUE (出力制御回避・収益)   */}
+      {/* ========================================================= */}
+      {activeSubTab === 'bess-curtailment' && (
+        <BessCurtailmentRevenueCalculator
+          onOpenContact={onOpenLogin}
+          isLoggedIn={isLoggedIn}
         />
       )}
 
@@ -1684,6 +1922,41 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
 
                 <button
                   type="button"
+                  onClick={() => {
+                    const item = {
+                      id: `vdrop-${Date.now()}`,
+                      toolId: 'kyokuto-vdrop',
+                      toolTitle: '極東電線 電圧降下計算',
+                      timestamp: Date.now(),
+                      dateStr: new Date().toLocaleString('ja-JP'),
+                      summary: `JIS CVT ${selectedCableSizeSq} mm² ｜ 電圧降下: ${(kyokutoMethod === 'PRECISE' ? kyokutoResult.preciseDropPercent : kyokutoResult.simplifiedDropPercent).toFixed(2)}% (許容: ${kyokutoResult.allowableLimitPercent}%) ｜ 判定: ${kyokutoResult.isCompliant ? 'PASS' : 'NG'}`,
+                      data: {
+                        systemType: kyokutoSysType,
+                        voltageV: sysVoltage,
+                        currentA: calculatedCurrent.toFixed(1),
+                        cableSizeSq: `${selectedCableSizeSq} mm²`,
+                        routeLengthM: `${cableLengthM} m`,
+                        voltageDropV: (kyokutoMethod === 'PRECISE' ? kyokutoResult.preciseDropV : kyokutoResult.simplifiedDropV).toFixed(2),
+                        voltageDropPercent: `${(kyokutoMethod === 'PRECISE' ? kyokutoResult.preciseDropPercent : kyokutoResult.simplifiedDropPercent).toFixed(2)}%`,
+                        status: kyokutoResult.isCompliant ? 'PASS' : 'NG'
+                      }
+                    };
+                    const updated = [item, ...dossierList.filter((d: any) => d.toolId !== 'kyokuto-vdrop')];
+                    setDossierList(updated);
+                    try {
+                      localStorage.setItem('solnexa_engineering_dossier', JSON.stringify(updated));
+                      window.dispatchEvent(new Event('solnexa-dossier-updated'));
+                    } catch {}
+                    showToast('電圧降下計算結果を技術計算書に追加しました！');
+                  }}
+                  className="w-full py-2 px-3 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+                >
+                  <BookmarkCheck className="w-4 h-4 text-emerald-600" />
+                  <span>技術計算書（Dossier）に追加</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={handleExportReport}
                   className="w-full py-2 px-3 rounded-xl text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors flex items-center justify-center space-x-2"
                 >
@@ -2297,9 +2570,333 @@ Standard: JIS C 3605 / 極東電線 技術資料 / 内線規程
               <CheckCircle2 className="w-4 h-4" />
               <span>Apply to String Design / ストリング設計に反映</span>
             </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                const item = {
+                  id: `pvstring-${Date.now()}`,
+                  toolId: 'pv-string-check',
+                  toolTitle: 'PV ストリング検討 (Voc/Vmp)',
+                  timestamp: Date.now(),
+                  dateStr: new Date().toLocaleString('ja-JP'),
+                  summary: `直列数: ${scModulesPerString}枚/ストリング ｜ 最低気温時Voc: ${scCalculations.stringVocMax}V (PCS許容: ${scInvMaxDcV}V) ｜ 判定: ${scCalculations.overallStatus}`,
+                  data: {
+                    modulesPerString: `${scModulesPerString} 枚`,
+                    stringVocMax: `${scCalculations.stringVocMax} V`,
+                    stringVmpHot: `${scCalculations.stringVmpHot} V`,
+                    invMaxDcV: `${scInvMaxDcV} V`,
+                    minTempC: `${scMinTemp} °C`,
+                    status: scCalculations.overallStatus
+                  }
+                };
+                const updated = [item, ...dossierList.filter((d: any) => d.toolId !== 'pv-string-check')];
+                setDossierList(updated);
+                try {
+                  localStorage.setItem('solnexa_engineering_dossier', JSON.stringify(updated));
+                  window.dispatchEvent(new Event('solnexa-dossier-updated'));
+                } catch {}
+                showToast('PVストリング設計結果を技術計算書に追加しました！');
+              }}
+              className="w-full py-2.5 px-3 rounded-xl text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100 border border-emerald-300 transition-colors flex items-center justify-center space-x-2 cursor-pointer"
+            >
+              <BookmarkCheck className="w-4 h-4 text-emerald-600" />
+              <span>技術計算書（Dossier）に追加</span>
+            </button>
           </div>
         </div>
       )}
+
+      {/* ========================================================= */}
+      {/* 7-TOOL GRID SELECTOR MODAL (Dàn trang 7 công cụ dạng lưới) */}
+      {/* ========================================================= */}
+      {isToolGridModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="bg-white w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-[#002B49] text-white flex items-center justify-between shrink-0">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 bg-blue-500/20 rounded text-blue-300">
+                    <Grid className="w-4 h-4" />
+                  </span>
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-amber-300 font-bold">
+                    SOLNEXA QUICK ENGINEERING
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold">
+                  クイック設計計算ツール一覧 (全{QUICK_ENGINEERING_TOOLS.length}ツール)
+                </h3>
+                <p className="text-xs text-slate-300">
+                  行いたい計算ツールをクリックすると、該当の設計画面へ直接移動します
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsToolGridModalOpen(false)}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content: 7 Cards Grid */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                {QUICK_ENGINEERING_TOOLS.map((t, idx) => {
+                  const Icon = t.icon;
+                  const isCurrent = t.id === activeSubTab || (t.alias && t.alias.includes(activeSubTab));
+                  return (
+                    <div
+                      key={t.id}
+                      onClick={() => {
+                        handleSelectTool(t.id);
+                        setIsToolGridModalOpen(false);
+                      }}
+                      className={`p-4 rounded-xl border-2 transition-all cursor-pointer flex flex-col justify-between text-left space-y-3 ${
+                        isCurrent
+                          ? 'border-blue-600 bg-blue-50/70 shadow-sm ring-1 ring-blue-500'
+                          : 'border-slate-200 bg-white hover:border-blue-300 hover:bg-slate-50'
+                      }`}
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <div className={`p-2 rounded-lg ${t.accentColor}`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-mono text-slate-400">
+                              #{idx + 1}
+                            </span>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded ${
+                              t.badgeType === 'free'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {t.badge}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-900 leading-tight">
+                            {t.titleJa}
+                          </h4>
+                          <span className="text-[11px] text-slate-400 font-mono block">
+                            {t.titleEn}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
+                          {t.desc}
+                        </p>
+                      </div>
+
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
+                        <span className="text-slate-400 truncate max-w-[150px] font-mono">
+                          {t.standard}
+                        </span>
+                        <span className={`font-bold ${isCurrent ? 'text-blue-700' : 'text-slate-600'}`}>
+                          {isCurrent ? '✓ 開いています' : '選択する →'}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 border-t border-slate-200 flex justify-between items-center text-xs text-slate-500">
+              <span>※ 画面左のサイドバーからもいつでも1クリックで切り替え可能です</span>
+              <button
+                type="button"
+                onClick={() => setIsToolGridModalOpen(false)}
+                className="px-4 py-1.5 bg-slate-200 hover:bg-slate-300 text-slate-800 font-semibold rounded-lg transition-colors cursor-pointer"
+              >
+                閉じる
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* UNIFIED DOSSIER MODAL (Hồ sơ Tính toán Kỹ thuật Hợp nhất)   */}
+      {/* ========================================================= */}
+      {isDossierModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150">
+          <div
+            className="bg-white w-full max-w-3xl max-h-[90vh] rounded-2xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden"
+            onClick={e => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 bg-[#002B49] text-white flex items-center justify-between shrink-0">
+              <div className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <BookmarkCheck className="w-4 h-4 text-emerald-400" />
+                  <span className="text-[10px] font-mono uppercase tracking-widest text-emerald-300 font-bold">
+                    ENGINEERING CALCULATION DOSSIER
+                  </span>
+                </div>
+                <h3 className="text-base sm:text-lg font-bold">
+                  総合技術計算書・照査フォルダ
+                </h3>
+                <p className="text-xs text-slate-300">
+                  各ツールで算定したパラメータを統合管理し、一括で技術計算書として出力できます
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsDossierModalOpen(false)}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-4 custom-scrollbar">
+              {dossierList.length === 0 ? (
+                <div className="text-center py-12 px-4 space-y-3">
+                  <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 mx-auto flex items-center justify-center">
+                    <FileText className="w-6 h-6" />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-700">まだ計算書に項目が追加されていません</h4>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    「積雪・気象条件チェック」や「電圧降下計算」などの各画面にある<strong className="text-slate-800">「技術計算書に追加」</strong>ボタンを押すと、このフォルダに結果が自動保存されます。
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-xs text-slate-500 pb-2 border-b border-slate-100">
+                    <span>保存済み項目: <strong className="text-slate-800">{dossierList.length} 件</strong></span>
+                    <button
+                      type="button"
+                      onClick={handleClearDossier}
+                      className="text-rose-600 hover:underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>全項目をクリア</span>
+                    </button>
+                  </div>
+
+                  {dossierList.map((item, idx) => (
+                    <div
+                      key={item.id || idx}
+                      className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 hover:bg-slate-50 space-y-2 text-xs transition-colors"
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-bold text-blue-900 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-blue-600" />
+                          <span>{item.toolTitle}</span>
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            {item.dateStr || ''}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveDossierItem(item.id)}
+                            className="text-slate-400 hover:text-rose-600 transition-colors p-1"
+                            title="この項目を削除"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <p className="font-medium text-slate-800">
+                        {item.summary}
+                      </p>
+
+                      {item.data && (
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 p-2 bg-white rounded border border-slate-200/80 font-mono text-[11px]">
+                          {Object.entries(item.data).slice(0, 6).map(([k, v]) => (
+                            <div key={k}>
+                              <span className="text-slate-400 block text-[9px] uppercase">{k}</span>
+                              <span className="font-bold text-slate-800 truncate block">{String(v)}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 bg-slate-50 border-t border-slate-200 flex flex-wrap items-center justify-between gap-3 shrink-0">
+              <span className="text-xs text-slate-500 font-mono">
+                SOLNEXA Standalone Engineering Engine
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  disabled={dossierList.length === 0}
+                  className="px-3 py-2 bg-white border border-slate-300 hover:bg-slate-100 text-slate-700 font-semibold text-xs rounded-xl transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  <span>印刷</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleExportCombinedDossier}
+                  disabled={dossierList.length === 0}
+                  className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>総合技術計算書を出力 (.txt)</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* FLOATING ACTION DOCK (Dock trôi nổi chuyển Tool & Home)    */}
+      {/* ========================================================= */}
+      <div className="fixed bottom-5 right-5 z-40 flex items-center gap-2 bg-slate-900/90 text-white p-1.5 rounded-2xl shadow-xl backdrop-blur-md border border-slate-700 select-none">
+        <button
+          type="button"
+          onClick={() => setIsToolGridModalOpen(true)}
+          className="flex items-center gap-1 px-3 py-2 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors cursor-pointer text-blue-300"
+          title="7つの設計ツール一覧を開く"
+        >
+          <Grid className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">ツール一覧</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setIsDossierModalOpen(true)}
+          className="flex items-center gap-1 px-3 py-2 hover:bg-white/10 rounded-xl text-xs font-bold transition-colors cursor-pointer text-emerald-300"
+          title="技術計算書（Dossier）を開く"
+        >
+          <BookmarkCheck className="w-3.5 h-3.5" />
+          <span className="hidden sm:inline">計算書</span>
+          <span className="bg-emerald-500 text-slate-950 font-mono text-[10px] px-1.5 py-0.2 rounded-full font-bold">
+            {dossierList.length}
+          </span>
+        </button>
+
+        <div className="w-px h-5 bg-white/20 my-auto" />
+
+        <button
+          type="button"
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          className="p-2 hover:bg-white/10 rounded-xl text-slate-300 hover:text-white transition-colors cursor-pointer"
+          title="ページ最上部へスクロール"
+        >
+          <ArrowUp className="w-4 h-4" />
+        </button>
+      </div>
     </div>
   );
 };

@@ -276,6 +276,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               <span>{isSubmitting ? '認証中...' : 'ログイン'}</span>
             </button>
 
+            {/* Quick Demo Fill for Admin */}
+            <div className="bg-slate-50 border border-slate-200/80 rounded-xl p-2.5 flex items-center justify-between text-[11px]">
+              <span className="text-slate-600 font-medium">管理者アカウントでテスト:</span>
+              <button
+                type="button"
+                onClick={() => {
+                  setEmail('hoanganhtuan558@gmail.com');
+                  setPassword('SolnexaAdmin#2026');
+                }}
+                className="text-blue-700 hover:text-blue-900 font-bold underline cursor-pointer"
+              >
+                管理者情報を自動入力
+              </button>
+            </div>
+
             {/* Switch to Register */}
             <div className="text-center pt-2 border-t border-slate-100">
               <button

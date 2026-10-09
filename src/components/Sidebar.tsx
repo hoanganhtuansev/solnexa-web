@@ -28,7 +28,10 @@ import {
   LineChart,
   GitFork,
   ArrowLeft,
-  CloudSnow
+  CloudSnow,
+  ShieldAlert,
+  Wind,
+  TrendingUp
 } from 'lucide-react';
 import { ActiveTab } from '../types';
 import { APP_IMAGES } from '../assets/images';
@@ -36,6 +39,9 @@ import { SolnexaLogo } from './corporate/SolnexaLogo';
 
 export type QuickToolId =
   | 'snow-weather'
+  | 'bess-fire-safety'
+  | 'jis-wind-load'
+  | 'bess-curtailment'
   | 'kyokuto-vdrop'
   | 'circuit-vdrop'
   | 'pv-string-check'
@@ -54,6 +60,33 @@ export const QUICK_TOOLS_SIDEBAR_ITEMS = [
     badge: '無料',
     isMember: false,
     iconBg: 'text-sky-600 bg-sky-50'
+  },
+  {
+    id: 'bess-fire-safety' as QuickToolId,
+    name: 'BESS 消防法・離隔距離',
+    en: 'BESS Fire Safety',
+    icon: ShieldAlert,
+    badge: '無料',
+    isMember: false,
+    iconBg: 'text-rose-600 bg-rose-50'
+  },
+  {
+    id: 'jis-wind-load' as QuickToolId,
+    name: 'JIS 架台風圧・杭引抜力',
+    en: 'JIS Wind & Pile',
+    icon: Wind,
+    badge: '無料',
+    isMember: false,
+    iconBg: 'text-teal-600 bg-teal-50'
+  },
+  {
+    id: 'bess-curtailment' as QuickToolId,
+    name: '出力制御＆JEPX収益試算',
+    en: 'Curtailment & JEPX',
+    icon: TrendingUp,
+    badge: '無料',
+    isMember: false,
+    iconBg: 'text-emerald-600 bg-emerald-50'
   },
   {
     id: 'kyokuto-vdrop' as QuickToolId,
@@ -364,7 +397,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 {!isCollapsed && (
                   <div className="px-2 py-1 flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 font-mono">
-                      設計計算ツール (7)
+                      設計計算ツール ({QUICK_TOOLS_SIDEBAR_ITEMS.length})
                     </span>
                     <span className="text-[9px] bg-blue-50 text-blue-700 px-1.5 py-0.2 rounded font-bold border border-blue-200/60">
                       垂直切替

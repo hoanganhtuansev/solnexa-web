@@ -18,7 +18,9 @@ import {
   Layers,
   Sliders,
   BookOpen,
-  ArrowRight
+  ArrowRight,
+  Printer,
+  Calculator
 } from 'lucide-react';
 import { MLIT_SNOW_ZONES } from '../../server/snowEngine/snowZonesData';
 
@@ -39,7 +41,7 @@ export const Kokuji1455Modal: React.FC<Kokuji1455ModalProps> = ({
   currentSeaRatioRs,
   calculatedDepthCm
 }) => {
-  const [activeTab, setActiveTab] = useState<'statute' | 'zones' | 'engineering' | 'citations'>('statute');
+  const [activeTab, setActiveTab] = useState<'statute' | 'zones' | 'calc-step' | 'engineering' | 'citations'>('statute');
   const [searchQuery, setSearchQuery] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -60,6 +62,10 @@ export const Kokuji1455Modal: React.FC<Kokuji1455ModalProps> = ({
   }, [activeZoneId]);
 
   if (!isOpen) return null;
+
+  const handlePrint = () => {
+    window.print();
+  };
 
   const handleCopyStatute = () => {
     const text = `【平成12年5月31日 建設省告示第1455号（建築基準法施行令第86条第3項）】
@@ -127,6 +133,14 @@ ${activeZone.zoneName}
 
           <div className="flex items-center gap-2">
             <button
+              onClick={handlePrint}
+              className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-xs flex items-center gap-1 border border-white/20 bg-white/5"
+              title="A4法令根拠資料・算定書を印刷 / PDF出力"
+            >
+              <Printer className="w-4 h-4 text-amber-300" />
+              <span className="hidden sm:inline font-semibold">A4印刷 / PDF</span>
+            </button>
+            <button
               onClick={handleCopyStatute}
               className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors cursor-pointer text-xs flex items-center gap-1"
               title="条文とパラメータをクリップボードにコピー"
@@ -171,6 +185,18 @@ ${activeZone.zoneName}
             <span className="text-[10px] font-mono bg-blue-100 text-blue-800 px-1.5 py-0.2 rounded-full font-bold">
               40
             </span>
+          </button>
+
+          <button
+            onClick={() => setActiveTab('calc-step')}
+            className={`py-3 px-3 text-xs font-semibold whitespace-nowrap border-b-2 transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeTab === 'calc-step'
+                ? 'border-blue-600 text-blue-700 font-bold bg-white'
+                : 'border-transparent text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Calculator className="w-3.5 h-3.5" />
+            <span>算定手順・代入プロセス完全解説</span>
           </button>
 
           <button
@@ -384,6 +410,142 @@ ${activeZone.zoneName}
                     })}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          )}
+
+          {/* TAB 2.5: 算定手順・代入プロセス完全解説 */}
+          {activeTab === 'calc-step' && (
+            <div className="space-y-5 text-xs">
+              <div className="p-4 bg-blue-50/80 border border-blue-200 rounded-xl space-y-2">
+                <div className="flex items-center gap-2 font-bold text-sm text-blue-900">
+                  <Calculator className="w-4.5 h-4.5 text-blue-600" />
+                  <span>建設省告示第1455号 算定式のステップ別代入・導出プロセス</span>
+                </div>
+                <p className="text-slate-600 leading-relaxed">
+                  告示第1455号の計算式「<code className="font-mono font-bold text-blue-950">d = α × ls + β × rs + γ</code>」は、敷地標高、海との位置関係、地域の過去積雪統計に基づき一意に確定します。
+                </p>
+              </div>
+
+              {/* Step by step cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-blue-100 text-blue-800 rounded">
+                      STEP 1: 標高項
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">α × ls</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900">標高影響度の算定</h4>
+                  <p className="text-slate-500 text-[11px]">
+                    標高 1m 上昇あたりの積雪増加量（係数α）に敷地標高 ls を乗じます。
+                  </p>
+                  <div className="p-2.5 bg-slate-50 rounded-lg font-mono text-center">
+                    <div className="text-[10px] text-slate-400">計算値:</div>
+                    <div className="text-sm font-bold text-slate-900">
+                      {activeZone.alpha} × {currentElevationM ?? 101}m = {Number((activeZone.alpha * (currentElevationM ?? 101)).toFixed(3))} m
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-sky-100 text-sky-800 rounded">
+                      STEP 2: 海率項
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">β × rs</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900">海面近接緩和の算定</h4>
+                  <p className="text-slate-500 text-[11px]">
+                    半径 {activeZone.radiusKm}km 円内の海面割合 rs に海率係数 β を乗じます（海洋性の温暖効果）。
+                  </p>
+                  <div className="p-2.5 bg-slate-50 rounded-lg font-mono text-center">
+                    <div className="text-[10px] text-slate-400">計算値:</div>
+                    <div className="text-sm font-bold text-slate-900">
+                      {activeZone.beta} × {currentSeaRatioRs?.toFixed(3) ?? '0.000'} = {Number((activeZone.beta * (currentSeaRatioRs ?? 0)).toFixed(3))} m
+                    </div>
+                  </div>
+                </div>
+
+                <div className="p-4 bg-white rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">
+                      STEP 3: 基準定数
+                    </span>
+                    <span className="text-slate-400 font-mono text-[10px]">γ</span>
+                  </div>
+                  <h4 className="font-bold text-slate-900">平野部基本積雪量</h4>
+                  <p className="text-slate-500 text-[11px]">
+                    当該区域の海岸線・平野部における基礎となる積雪定数 γ を加算します。
+                  </p>
+                  <div className="p-2.5 bg-slate-50 rounded-lg font-mono text-center">
+                    <div className="text-[10px] text-slate-400">定数値:</div>
+                    <div className="text-sm font-bold text-slate-900">
+                      γ ＝ {activeZone.gamma} m ({Math.round(activeZone.gamma * 100)} cm)
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Total Calculation Equation Banner */}
+              <div className="p-4 bg-slate-900 text-white rounded-xl space-y-2">
+                <span className="text-[10px] font-mono text-amber-300 font-bold uppercase tracking-wider">
+                  COMBINED GOVERNING FORMULA ｜ 最終合算式
+                </span>
+                <div className="font-mono text-sm sm:text-base font-bold text-emerald-300 overflow-x-auto py-1">
+                  d = ({activeZone.alpha} × {currentElevationM ?? 101}) + ({activeZone.beta} × {currentSeaRatioRs?.toFixed(3) ?? '0.000'}) + {activeZone.gamma} = {calculatedDepthCm ? (calculatedDepthCm / 100).toFixed(2) : '0.30'} m
+                </div>
+                <div className="flex items-center justify-between text-xs text-slate-300 pt-1 border-t border-white/10">
+                  <span>算定垂直積雪量: <strong className="text-xl font-mono text-white ml-1">{calculatedDepthCm ?? 30} cm</strong></span>
+                  <button
+                    onClick={handlePrint}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs cursor-pointer"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>確認申請添付用A4印刷</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Verification Sheet (Shown inside modal and printed on window.print) */}
+              <div className="p-5 bg-white border-2 border-slate-300 rounded-xl space-y-3 font-serif">
+                <div className="flex items-start justify-between border-b-2 border-slate-900 pb-2">
+                  <div>
+                    <h3 className="text-base font-bold font-sans text-slate-900">
+                      垂直積雪量算定書（建設省告示第1455号準拠）
+                    </h3>
+                    <p className="text-[10px] text-slate-500 font-sans mt-0.5">
+                      建築基準法施行令第86条第3項 ／ 構造計算適合性判定・確認申請添付資料
+                    </p>
+                  </div>
+                  <div className="text-right text-[10px] text-slate-500 font-sans">
+                    <div>作成日: {new Date().toLocaleDateString('ja-JP')}</div>
+                    <div>エンジン: SOLNEXA Standalone v2.6</div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 text-xs font-sans">
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">適用告示区分:</span>
+                    <strong className="text-slate-900">第{activeZone.zoneId}区域（{activeZone.zoneName}）</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">敷地標高 (ls):</span>
+                    <strong className="text-slate-900">{currentElevationM ?? 101} m</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">海率 (rs) / 対象半径 (R):</span>
+                    <strong className="text-slate-900">{currentSeaRatioRs?.toFixed(3) ?? '0.000'} / {activeZone.radiusKm} km</strong>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 block text-[10px]">採用垂直積雪量 (d):</span>
+                    <strong className="text-blue-900 text-sm">{calculatedDepthCm ?? 30} cm ({(calculatedDepthCm ? calculatedDepthCm / 100 : 0.3).toFixed(2)} m)</strong>
+                  </div>
+                </div>
+
+                <div className="p-2.5 bg-slate-50 rounded border border-slate-200 text-[11px] font-sans text-slate-700">
+                  <strong>判定所見:</strong> 本算定値は国土交通省告示第1455号別表規定の公式定数に基づく純数学的導出値であり、所轄特定行政庁による細則基準値と安全側比較を行った上で構造設計に適用されます。
+                </div>
               </div>
             </div>
           )}

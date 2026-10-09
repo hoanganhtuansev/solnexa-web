@@ -111,7 +111,20 @@ export default function App() {
     setIsContactModalOpen(true);
   };
 
-  const [quickToolInitialTab, setQuickToolInitialTab] = useState<'snow-weather' | 'kyokuto-vdrop' | 'isijp-conduit' | 'pv-pcs-cable' | 'circuit-vdrop' | 'cable-selection' | 'current-calc' | 'transformer-sizing' | 'pv-string-check'>('snow-weather');
+  const [quickToolInitialTab, setQuickToolInitialTab] = useState<
+    | 'snow-weather'
+    | 'bess-fire-safety'
+    | 'jis-wind-load'
+    | 'bess-curtailment'
+    | 'kyokuto-vdrop'
+    | 'isijp-conduit'
+    | 'pv-pcs-cable'
+    | 'circuit-vdrop'
+    | 'cable-selection'
+    | 'current-calc'
+    | 'transformer-sizing'
+    | 'pv-string-check'
+  >('snow-weather');
 
   const handleOpenEngineeringTool = (view: any, projectId: string = 'proj-chiba-solar') => {
     setActiveProjectId(projectId);
@@ -601,6 +614,7 @@ export default function App() {
                 <ReviewWorkbench
                   initialModelId={activeModelForReview}
                   onCommittedToLibrary={handleCommittedToLibrary}
+                  currentUser={currentUser}
                 />
               )}
 

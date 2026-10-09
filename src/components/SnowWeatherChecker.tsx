@@ -29,22 +29,42 @@ import {
   ChevronRight,
   TrendingDown,
   Navigation,
-  BookOpen
+  BookOpen,
+  History,
+  PieChart,
+  ArrowRight,
+  Trash2,
+  Zap,
+  Download
 } from 'lucide-react';
 import { SnowWeatherCheckerResponse } from '../../server/snowEngine/types';
+import { snowEngineService } from '../../server/snowEngine/snowEngineService';
 import { Kokuji1455Modal } from './Kokuji1455Modal';
 import { OfficialRuleModal } from './OfficialRuleModal';
+
+export interface RecentSiteItem {
+  id: string;
+  query: string;
+  label: string;
+  snowDepthCm: number | null;
+  status: string;
+  timestamp: number;
+}
 
 interface SnowWeatherCheckerProps {
   onOpenProject?: (projectId: string) => void;
   isLoggedIn?: boolean;
   onOpenLogin?: () => void;
+  onTransferToPvString?: (data: { tempMinC: number; location: string }) => void;
+  onTransferToVoltageDrop?: (data: { location: string; ambientTempC: number }) => void;
 }
 
 export const SnowWeatherChecker: React.FC<SnowWeatherCheckerProps> = ({
   onOpenProject,
   isLoggedIn,
-  onOpenLogin
+  onOpenLogin,
+  onTransferToPvString,
+  onTransferToVoltageDrop
 }) => {
   const [searchInput, setSearchInput] = useState('34.444658, 135.745248');
   const [isLoading, setIsLoading] = useState(false);
@@ -54,6 +74,61 @@ export const SnowWeatherChecker: React.FC<SnowWeatherCheckerProps> = ({
   const [isOfflineMode, setIsOfflineMode] = useState<boolean>(false);
   const [isKokujiModalOpen, setIsKokujiModalOpen] = useState(false);
   const [isOfficialRuleModalOpen, setIsOfficialRuleModalOpen] = useState(false);
+  const [savedToDossier, setSavedToDossier] = useState(false);
+  const [isNetworkOnline, setIsNetworkOnline] = useState(
+    typeof navigator !== 'undefined' ? navigator.onLine : true
+  );
+
+  useEffect(() => {
+    const handleOnline = () => setIsNetworkOnline(true);
+    const handleOffline = () => setIsNetworkOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  // Recent searches history (Saved in localStorage)
+  const [recentSites, setRecentSites] = useState<RecentSiteItem[]>(() => {
+    try {
+      const saved = localStorage.getItem('solnexa_recent_snow_sites');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const saveRecentSite = (query: string, result: SnowWeatherCheckerResponse) => {
+    try {
+      const newItem: RecentSiteItem = {
+        id: `${result.site.latitude.toFixed(4)}_${result.site.longitude.toFixed(4)}`,
+        query,
+        label: result.site.addressLine.slice(0, 24),
+        snowDepthCm: result.comparison.governingDesignValueCm,
+        status: result.officialCheck.status,
+        timestamp: Date.now()
+      };
+      setRecentSites(prev => {
+        const filtered = prev.filter(p => p.id !== newItem.id && p.query !== query);
+        const updated = [newItem, ...filtered].slice(0, 6);
+        try {
+          localStorage.setItem('solnexa_recent_snow_sites', JSON.stringify(updated));
+        } catch {}
+        return updated;
+      });
+    } catch (e) {
+      console.warn('Failed to save recent site:', e);
+    }
+  };
+
+  const handleClearRecentSites = () => {
+    setRecentSites([]);
+    try {
+      localStorage.removeItem('solnexa_recent_snow_sites');
+    } catch {}
+  };
 
   // Preset Benchmark Locations
   const presetLocations = [
@@ -75,22 +150,46 @@ export const SnowWeatherChecker: React.FC<SnowWeatherCheckerProps> = ({
     const offlineFlag = forceOffline !== undefined ? forceOffline : isOfflineMode;
     try {
       const isCoords = queryStr.match(/^([0-9]+\.[0-9]+)\s*[,，\s]\s*([0-9]+\.[0-9]+)$/);
-      let url = '/api/snow-weather/check?';
-      if (isCoords) {
-        url += `lat=${encodeURIComponent(isCoords[1])}&lon=${encodeURIComponent(isCoords[2])}`;
-      } else {
-        url += `address=${encodeURIComponent(queryStr)}`;
-      }
+      const parsedLat = isCoords ? parseFloat(isCoords[1]) : undefined;
+      const parsedLon = isCoords ? parseFloat(isCoords[2]) : undefined;
+
+      let json: SnowWeatherCheckerResponse;
       if (offlineFlag) {
-        url += `&offline=true`;
+        // Zero-latency 100% offline standalone engine execution (zero network dependency)
+        json = await snowEngineService.analyzeLocation({
+          address: isCoords ? undefined : queryStr,
+          lat: parsedLat,
+          lon: parsedLon,
+          offlineOnly: true
+        });
+      } else {
+        // Online live mode: query API with AMeDAS and GSI DEM, fallback gracefully to client engine if offline
+        let url = '/api/snow-weather/check?';
+        if (isCoords) {
+          url += `lat=${encodeURIComponent(isCoords[1])}&lon=${encodeURIComponent(isCoords[2])}`;
+        } else {
+          url += `address=${encodeURIComponent(queryStr)}`;
+        }
+
+        try {
+          const res = await fetch(url);
+          if (!res.ok) {
+            throw new Error(`サーバー応答エラー (${res.status})`);
+          }
+          json = await res.json();
+        } catch (fetchErr) {
+          console.warn('Live API unavailable, activating client-side offline engine:', fetchErr);
+          json = await snowEngineService.analyzeLocation({
+            address: isCoords ? undefined : queryStr,
+            lat: parsedLat,
+            lon: parsedLon,
+            offlineOnly: true
+          });
+        }
       }
 
-      const res = await fetch(url);
-      if (!res.ok) {
-        throw new Error(`サーバー応答エラー (${res.status}): 積雪・気象データの取得に失敗しました。`);
-      }
-      const json: SnowWeatherCheckerResponse = await res.json();
       setData(json);
+      saveRecentSite(queryStr, json);
     } catch (err: any) {
       console.error('Fetch snow weather error:', err);
       setError(err.message || 'データ取得中にエラーが発生しました。ネットワークを確認してください。');
@@ -98,6 +197,75 @@ export const SnowWeatherChecker: React.FC<SnowWeatherCheckerProps> = ({
       setIsLoading(false);
     }
   };
+
+  const handleSaveToDossier = () => {
+    if (!data) return;
+    try {
+      const existing = localStorage.getItem('solnexa_engineering_dossier');
+      const dossierList = existing ? JSON.parse(existing) : [];
+      const item = {
+        id: `snow-${Date.now()}`,
+        toolId: 'snow-weather',
+        toolTitle: '積雪・気象条件 (告示1455号)',
+        timestamp: Date.now(),
+        dateStr: new Date().toLocaleString('ja-JP'),
+        summary: `${data.site.addressLine} ｜ 設計垂直積雪量: ${data.comparison.governingDesignValueCm}cm ｜ 告示区分: ${data.autoCalculation.zoneName}`,
+        data: {
+          location: data.site.addressLine,
+          elevationM: data.site.elevationM,
+          governingDepthCm: data.comparison.governingDesignValueCm,
+          officialDepthCm: data.officialCheck.snowDepthCm,
+          calculatedDepthCm: data.autoCalculation.calculatedDepthCm,
+          zoneName: data.autoCalculation.zoneName,
+          status: data.officialCheck.status
+        }
+      };
+      const updated = [item, ...dossierList.filter((d: any) => d.toolId !== 'snow-weather')];
+      localStorage.setItem('solnexa_engineering_dossier', JSON.stringify(updated));
+      window.dispatchEvent(new Event('solnexa-dossier-updated'));
+      setSavedToDossier(true);
+      setTimeout(() => setSavedToDossier(false), 3000);
+    } catch (e) {
+      console.warn('Failed to save to dossier:', e);
+    }
+  };
+
+  // BESS Container Roof Snow Load Calculation (建築基準法施行令第86条第2項)
+  const bessSnowLoad = React.useMemo(() => {
+    if (!data) return null;
+    const depthCm = data.comparison.governingDesignValueCm || data.autoCalculation.calculatedDepthCm || 30;
+    // ρ: 20 N/m²/cm (標準) または 30 N/m²/cm (多雪指定時: 垂直積雪量100cm以上)
+    const isHeavySnow = depthCm >= 100;
+    const rho = isHeavySnow ? 30 : 20; // N/m² per cm
+    
+    // Unit Load
+    const unitLoadNPerM2 = Math.round(depthCm * rho);
+    const unitLoadKgPerM2 = Number((unitLoadNPerM2 / 9.80665).toFixed(1));
+    
+    // Standard 20ft BESS Container (6.058m x 2.438m ≈ 14.77 m²)
+    const area20ft = 14.77;
+    const totalLoad20ftN = Math.round(unitLoadNPerM2 * area20ft);
+    const totalLoad20ftKg = Math.round(unitLoadKgPerM2 * area20ft);
+    
+    // Standard 40ft BESS Container (12.192m x 2.438m ≈ 29.72 m²)
+    const area40ft = 29.72;
+    const totalLoad40ftN = Math.round(unitLoadNPerM2 * area40ft);
+    const totalLoad40ftKg = Math.round(unitLoadKgPerM2 * area40ft);
+    const totalLoad40ftTon = Number((totalLoad40ftKg / 1000).toFixed(2));
+
+    return {
+      depthCm,
+      rho,
+      isHeavySnow,
+      unitLoadNPerM2,
+      unitLoadKgPerM2,
+      totalLoad20ftN,
+      totalLoad20ftKg,
+      totalLoad40ftN,
+      totalLoad40ftKg,
+      totalLoad40ftTon
+    };
+  }, [data]);
 
   useEffect(() => {
     // Initial fetch with benchmark location
@@ -155,6 +323,28 @@ ${data.bessSiteNotes.map(n => `・[${n.severity}] ${n.title}: ${n.description}`)
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12 font-sans">
+      {/* Formal A4 Print Header - Only rendered when printing or saving as PDF */}
+      <div className="hidden print:block border-b-2 border-slate-900 pb-4 mb-6">
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">
+              株式会社ソルネクサ (SOLNEXA JAPAN)
+            </h1>
+            <h2 className="text-sm font-bold text-slate-700 mt-0.5">
+              蓄電所・太陽光発電所 計画地 積雪・気象条件設計検討報告書
+            </h2>
+            <p className="text-[10px] text-slate-500 font-mono mt-1">
+              準拠規格: 建設省告示第1455号（建築基準法施行令第86条第3項）/ 特定行政庁建築基準施行細則 / 国土地理院DEM / 気象庁AMeDAS
+            </p>
+          </div>
+          <div className="text-right text-[10px] font-mono text-slate-600 space-y-0.5">
+            <div>発行日: {new Date().toLocaleDateString('ja-JP')}</div>
+            <div>文書番号: SLX-SNOW-{data ? `${data.site.latitude.toFixed(2)}${data.site.longitude.toFixed(2)}` : 'PREVIEW'}</div>
+            <div>公式判定: {data?.officialCheck.status || 'VERIFIED'}</div>
+          </div>
+        </div>
+      </div>
+
       {/* Header Banner */}
       <div className="bg-gradient-to-r from-[#002B49] via-[#003860] to-[#0f4c75] rounded-2xl p-6 text-white shadow-lg relative overflow-hidden">
         <div className="absolute right-0 top-0 bottom-0 w-96 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-blue-400/10 via-transparent to-transparent pointer-events-none" />
@@ -184,6 +374,19 @@ ${data.bessSiteNotes.map(n => `・[${n.severity}] ${n.title}: ${n.description}`)
           </div>
 
           <div className="flex flex-wrap items-center gap-2 shrink-0">
+            <button
+              onClick={handleSaveToDossier}
+              disabled={!data}
+              className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold backdrop-blur-xs border transition-all cursor-pointer disabled:opacity-50 ${
+                savedToDossier
+                  ? 'bg-emerald-600 text-white border-emerald-400 font-bold shadow-md'
+                  : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-200 border-emerald-400/30'
+              }`}
+              title="この積雪・気象条件の計算結果をクイック設計全体の技術計算書（Dossier）に追加"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              <span>{savedToDossier ? '技術計算書に追加完了！' : '技術計算書に追加'}</span>
+            </button>
             <button
               onClick={handleCopyReport}
               disabled={!data}
@@ -224,33 +427,44 @@ ${data.bessSiteNotes.map(n => `・[${n.severity}] ${n.title}: ${n.description}`)
             </span>
           </div>
 
-          <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold self-start sm:self-auto">
-            <button
-              type="button"
-              onClick={() => handleToggleMode(false)}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                !isOfflineMode
-                  ? 'bg-blue-600 text-white shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${!isOfflineMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
-              <span>🛰️ ONLINE 連動</span>
-              <span className="text-[10px] opacity-80 font-normal hidden sm:inline">(AMeDAS &amp; GSI API)</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleToggleMode(true)}
-              className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
-                isOfflineMode
-                  ? 'bg-emerald-700 text-white shadow-xs font-bold'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-amber-300' : 'bg-slate-400'}`} />
-              <span>💾 OFFLINE 完全自立</span>
-              <span className="text-[10px] opacity-80 font-normal hidden sm:inline">(通信ゼロ・100%ローカル)</span>
-            </button>
+          <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto">
+            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[10px] font-mono font-bold border ${
+              isNetworkOnline
+                ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                : 'bg-rose-50 text-rose-800 border-rose-200'
+            }`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${isNetworkOnline ? 'bg-emerald-500 animate-pulse' : 'bg-rose-500'}`} />
+              <span>{isNetworkOnline ? '通信: オンライン' : '通信: オフライン (完全自立)'}</span>
+            </span>
+
+            <div className="inline-flex p-1 bg-slate-100 rounded-xl border border-slate-200 text-xs font-semibold">
+              <button
+                type="button"
+                onClick={() => handleToggleMode(false)}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  !isOfflineMode
+                    ? 'bg-blue-600 text-white shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${!isOfflineMode ? 'bg-emerald-400 animate-pulse' : 'bg-slate-400'}`} />
+                <span>🛰️ ONLINE 連動</span>
+                <span className="text-[10px] opacity-80 font-normal hidden sm:inline">(AMeDAS &amp; GSI API)</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => handleToggleMode(true)}
+                className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
+                  isOfflineMode
+                    ? 'bg-emerald-700 text-white shadow-xs font-bold'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${isOfflineMode ? 'bg-amber-300' : 'bg-slate-400'}`} />
+                <span>💾 OFFLINE 完全自立</span>
+                <span className="text-[10px] opacity-80 font-normal hidden sm:inline">(通信ゼロ・100%ローカル)</span>
+              </button>
+            </div>
           </div>
         </div>
 
